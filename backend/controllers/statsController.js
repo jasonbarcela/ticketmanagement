@@ -1,6 +1,4 @@
-// ============================================================
-// controllers/statsController.js — Dashboard KPI Aggregates
-// ============================================================
+// controllers/statsController.js — Dashboard KPI aggregates
 const StatsModel = require('../models/statsModel');
 
 async function getDashboard(_req, res, next) {

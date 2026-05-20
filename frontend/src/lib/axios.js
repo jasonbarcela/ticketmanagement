@@ -1,17 +1,11 @@
-// src/lib/axios.js
+// src/lib/axios.js — shared API client (Vite proxy → backend)
 import axios from 'axios'
 
 const api = axios.create({
-  // ❌ REMOVE THIS:
-  // baseURL: '/api',
-  
-  //  CHANGE TO THIS:
-  baseURL: 'http://localhost:3001/api', 
-  
+  baseURL: '/api',
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Attach session header from localStorage on every request
 api.interceptors.request.use((config) => {
   const raw = localStorage.getItem('cal_user')
   if (raw) {

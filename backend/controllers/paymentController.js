@@ -39,7 +39,13 @@ async function getHistory(req, res, next) {
 async function processPayment(req, res, next) {
   try {
     const { ticket_id, amount_paid, payment_method, notes } = req.body;
-    const operator = req.headers['x-user'] || 'system';
+    let operator = 'system';
+    try {
+      if (req.headers['x-user']) {
+        const u = JSON.parse(req.headers['x-user']);
+        operator = u.username || 'system';
+      }
+    } catch (_) { /* keep default */ }
 
     const parsedTicketId = parseInt(ticket_id, 10);
     const parsedAmount = parseFloat(amount_paid);

@@ -1,7 +1,6 @@
-// services/statsService.js — Dashboard Stats API Wrapper
+// services/statsService.js — Dashboard stats API
 import api from '../lib/axios'
 
 export const statsService = {
-  getDashboard: () =>
-    api.get('/stats').then(r => r.data),
+  getDashboard: () => api.get('/stats').then(r => r.data),
 }

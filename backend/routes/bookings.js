@@ -1,17 +1,15 @@
-// ============================================================
-// routes/bookings.js — Bookings Architecture Endpoint Paths
-// ============================================================
+// routes/bookings.js
 const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/bookingController');
+const { requireAuth } = require('../middleware/auth');
 
-// Admin-facing dashboard endpoints
-router.get('/', controller.getAll);
-router.get('/:id', controller.getOne);
-router.put('/:id/approve', controller.approveBooking);
-router.put('/:id/cancel', controller.cancelBooking);
-
-// Unauthenticated public facing intake form routing endpoint
+router.get('/downpayment-info', controller.getDownpaymentInfo);
 router.post('/', controller.submitIntake);
+
+router.get('/', requireAuth, controller.getAll);
+router.get('/:id', requireAuth, controller.getOne);
+router.put('/:id/approve', requireAuth, controller.approveBooking);
+router.put('/:id/cancel', requireAuth, controller.cancelBooking);
 
 module.exports = router;

@@ -11,14 +11,8 @@ import StatusBadge from '../../components/status/StatusBadge'
 import PaymentBadge from '../../components/status/PaymentBadge'
 import Spinner from '../../components/ui/Spinner'
 import Alert from '../../components/ui/Alert'
-
-const NEXT_STATUS = {
-  'Pending':          'Diagnostic',
-  'Diagnostic':       'In Progress',
-  'In Progress':      'Ready for Pickup',
-  'Ready for Pickup': 'Completed',
-  'Completed':        null,
-}
+import ReceiptModal from '../../components/modals/ReceiptModal'
+import { formatServiceDate, formatPreferredTime } from '../../lib/formatSchedule'
 
 // ---------------------------------------------------------------------------
 // Helpers (shared logic — consider moving to a utils file)
@@ -103,6 +97,32 @@ function Row({ label, value, mono }) {
   )
 }
 
+function TechnicianInfoCard({ ticket }) {
+  const assignedDisplay = ticket.tech_assigned_date
+    ? formatServiceDate(String(ticket.tech_assigned_date).slice(0, 10))
+    : '—'
+
+  return (
+    <div className="card hs-tech-card">
+      <div className="card-header"><h2>Technician</h2></div>
+      <div className="card-body">
+        <div className="hs-tech-stat">
+          <div className="hs-tech-stat-label">Technician Name</div>
+          <div className="hs-tech-stat-value">{ticket.assigned_tech?.trim() || 'Not assigned yet'}</div>
+        </div>
+        <div className="hs-tech-stat">
+          <div className="hs-tech-stat-label">Contact Number</div>
+          <div className="hs-tech-stat-value">{ticket.tech_contact?.trim() || '—'}</div>
+        </div>
+        <div className="hs-tech-stat">
+          <div className="hs-tech-stat-label">Assigned Date</div>
+          <div className="hs-tech-stat-value">{assignedDisplay}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -118,8 +138,9 @@ export default function ViewTicket() {
   const [logs,      setLogs]      = useState([])
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState('')
-  const [advancing, setAdvancing] = useState(false)
+  const [showReceipt, setShowReceipt] = useState(false)
   const [flash,     setFlash]     = useState(null)
+  const isAdmin = user?.role === 'admin'
 
   const loadData = async () => {
     try {
@@ -141,29 +162,24 @@ export default function ViewTicket() {
 
   useEffect(() => { setLoading(true); loadData() }, [id])
 
-  const handleAdvance = async () => {
-    const next = NEXT_STATUS[ticket.status]
-    if (!next) return
-    setAdvancing(true)
-    try {
-      const res = await ticketService.advance(ticket.ticket_id, next)
-      setFlash({ msg: res.message || `Advanced to ${next}.`, type: 'success' })
-      await loadData()
-    } catch (err) {
-      setFlash({ msg: err?.response?.data?.error || 'Failed to advance status.', type: 'error' })
-    } finally {
-      setAdvancing(false)
-    }
-  }
-
   if (loading) return <Spinner />
   if (error)   return <Alert type="error">{error}</Alert>
   if (!ticket) return <Alert type="error">Ticket not found.</Alert>
 
-  const nextStatus = NEXT_STATUS[ticket.status]
+  const isHomeService = ticket.service_type === 'Home Service'
+  const serviceDateLabel = ticket.service_date
+    ? formatServiceDate(String(ticket.service_date).slice(0, 10))
+    : null
+  const preferredTimeLabel = ticket.preferred_time
+    ? formatPreferredTime(String(ticket.preferred_time).slice(0, 5))
+    : null
 
   return (
     <>
+      {showReceipt && (
+        <ReceiptModal ticketId={ticket.ticket_id} onClose={() => setShowReceipt(false)} />
+      )}
+
       {/* Header */}
       <div className="page-header" style={{ flexWrap: 'wrap', gap: 10 }}>
         <div>
@@ -178,47 +194,51 @@ export default function ViewTicket() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={() => window.print()}>🖨️ Print</button>
-          {user?.role === 'admin' && (
-            <Link to={`/tickets/edit/${id}`} className="btn btn-primary">✏️ Edit Ticket</Link>
-          )}
+          <button type="button" className="btn btn-secondary" onClick={() => setShowReceipt(true)}>
+            🖨️ Print Ticket
+          </button>
+          <Link to={`/tickets/edit/${id}`} className="btn btn-primary">✏️ Edit Ticket</Link>
           <button className="btn btn-secondary" onClick={() => navigate('/tickets')}>← Back</button>
         </div>
       </div>
 
       {flash && <Alert type={flash.type} style={{ marginBottom: 16 }}>{flash.msg}</Alert>}
 
-      {/* Progress + Advance */}
+      {/* Progress (read-only — edit ticket to change status) */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-body" style={{ padding: '20px 24px' }}>
-          <ProgressStepper currentStatus={ticket.status} />
-          {nextStatus && (
-            <div style={{ textAlign: 'center', marginTop: 16 }}>
-              <button className="btn btn-primary" onClick={handleAdvance}
-                disabled={advancing} style={{ minWidth: 240 }}>
-                {advancing ? '⏳ Updating...' : `→ Advance to "${nextStatus}"`}
-              </button>
-            </div>
-          )}
+          <ProgressStepper currentStatus={ticket.status} serviceType={ticket.service_type} />
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="ticket-detail-grid">
         {/* Customer */}
         <div className="card">
-          <div className="card-header"><h2>👤 Customer</h2></div>
+          <div className="card-header"><h2>Customer</h2></div>
           <div className="card-body">
             <Row label="Name"     value={ticket.customer_name} />
             <Row label="Contact"  value={ticket.contact_number} />
             <Row label="Email"    value={ticket.customer_email} />
-            <Row label="Address"  value={ticket.address || ticket.customer_address} />
-            <Row label="Schedule" value={ticket.preferred_schedule} />
+            {!isHomeService && (
+              <Row label="Address" value={ticket.address || ticket.customer_address} />
+            )}
           </div>
         </div>
 
+        {isHomeService && (
+          <div className="card">
+            <div className="card-header"><h2>Service Address &amp; Schedule</h2></div>
+            <div className="card-body">
+              <Row label="Address" value={ticket.address || ticket.customer_address} />
+              <Row label="Assigned Date" value={serviceDateLabel} />
+              <Row label="Preferred Time" value={preferredTimeLabel} />
+            </div>
+          </div>
+        )}
+
         {/* Device */}
         <div className="card">
-          <div className="card-header"><h2>📱 Device</h2></div>
+          <div className="card-header"><h2>Device</h2></div>
           <div className="card-body">
             <Row label="Type"    value={ticket.device_type} />
             <Row label="Brand"   value={ticket.device_brand} />
@@ -228,11 +248,15 @@ export default function ViewTicket() {
           </div>
         </div>
 
+        {isHomeService && <TechnicianInfoCard ticket={ticket} />}
+
         {/* Diagnostics */}
         <div className="card" style={{ gridColumn: 'span 2' }}>
           <div className="card-header"><h2>🔧 Diagnostics &amp; Parts</h2></div>
           <div className="card-body">
-            <Row label="Assigned Tech"       value={ticket.assigned_tech || 'Unassigned'} />
+            {!isHomeService && (
+              <Row label="Assigned Tech" value={ticket.assigned_tech || 'Unassigned'} />
+            )}
             <Row label="Diagnostic Notes"    value={ticket.diagnostic_notes || '—'} />
             <Row label="Repair Notes"        value={ticket.repair_notes || '—'} />
             <Row label="Additional Findings" value={ticket.additional_findings || '—'} />
@@ -268,7 +292,7 @@ export default function ViewTicket() {
         </div>
 
         {/* Billing — admin only */}
-        {user?.role === 'admin' && (
+        {isAdmin && (
           <div className="card" style={{ gridColumn: 'span 2' }}>
             <div className="card-header"><h2>💰 Billing Summary</h2></div>
             <div className="card-body">
@@ -306,8 +330,8 @@ export default function ViewTicket() {
         )}
 
         {/* Repair Timeline (formerly Activity Log) */}
-        <div className="card" style={{ gridColumn: 'span 2' }}>
-          <div className="card-header"><h2>📋 Repair Timeline</h2></div>
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div className="card-header"><h2>Activity timeline</h2></div>
           <div className="card-body" style={{ padding: 0 }}>
             {logs.length === 0 ? (
               <div style={{ padding: 32, textAlign: 'center', color: 'var(--gray-400)', fontStyle: 'italic' }}>

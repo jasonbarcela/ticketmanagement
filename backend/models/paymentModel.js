@@ -5,6 +5,7 @@
 // structural ledger aggregation (Labor + Parts total costs).
 // ============================================================
 const pool = require('../config/db');
+const { DOWNPAYMENT_AMOUNT } = require('../utils/homeServiceConfig');
 
 /**
  * Calculates a ticket's financial standing: computes service labor costs,
@@ -13,12 +14,19 @@ const pool = require('../config/db');
 async function getBillingSummary(ticketId) {
   // 1. Grab base ticket metrics (estimated_cost as service/labor)
   const [ticketRows] = await pool.execute(
-    'SELECT ticket_id, estimated_cost FROM repair_tickets WHERE ticket_id = ?',
+    `SELECT rt.ticket_id, rt.estimated_cost, rt.service_type, rt.status,
+            b.downpayment_reference, b.downpayment_method
+     FROM repair_tickets rt
+     LEFT JOIN bookings b ON rt.booking_id = b.booking_id
+     WHERE rt.ticket_id = ?`,
     [ticketId]
   );
   if (!ticketRows.length) return null;
 
-  const laborCost = parseFloat(ticketRows[0].estimated_cost) || 0.00;
+  const row = ticketRows[0];
+  const laborCost = parseFloat(row.estimated_cost) || 0.00;
+  const isHomePending =
+    row.service_type === 'Home Service' && row.status === 'Pending';
 
   // 2. Aggregate structural values of linked parts from ticket_parts matrix
   const [partsRows] = await pool.execute(
@@ -50,7 +58,10 @@ async function getBillingSummary(ticketId) {
     grand_total: grandTotal,
     total_paid: totalPaid,
     remaining_balance: remainingBalance,
-    payment_status: calculatedStatus
+    payment_status: calculatedStatus,
+    downpayment_reference: row.downpayment_reference || null,
+    downpayment_method: row.downpayment_method || null,
+    expected_downpayment: isHomePending ? DOWNPAYMENT_AMOUNT : 0,
   };
 }
 

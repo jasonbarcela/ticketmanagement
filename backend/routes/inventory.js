@@ -1,14 +1,18 @@
 // routes/inventory.js — /api/inventory
-const express    = require('express');
-const router     = express.Router();
-const ctrl       = require('../controllers/inventoryController');
+const express = require('express');
+const router = express.Router();
+const ctrl = require('../controllers/inventoryController');
+const repairCtrl = require('../controllers/repairController');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
-// Read-only: all authenticated roles
 router.get('/', requireAuth, ctrl.getAll);
-
-// Admin-only write operations
 router.post('/update', requireAuth, requireRole(['admin']), ctrl.adjustStock);
-router.post('/add',    requireAuth, requireRole(['admin']), ctrl.addPart);
+router.post('/add', requireAuth, requireRole(['admin']), ctrl.addPart);
+
+// Ticket parts workflow (admin + technician)
+router.get('/ticket/:ticketId', requireAuth, repairCtrl.getTicketParts);
+router.post('/ticket/attach', requireAuth, repairCtrl.attachPart);
+router.delete('/ticket/:ticketId/detach/:partId', requireAuth, repairCtrl.detachPart);
+router.get('/low-stock', requireAuth, repairCtrl.getLowStock);
 
 module.exports = router;

@@ -7,8 +7,9 @@
 //   • Delete with ConfirmDialog
 //   • Links to ViewTicket and EditTicket
 // ============================================================
-import { useState, useCallback }  from 'react'
-import { Link }                   from 'react-router-dom'
+import { useState, useCallback, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { TICKET_STATUSES, FILTER_STATUSES } from '../../constants/ticketStatus'
 import { ticketService }          from '../../services/ticketService'
 import { useFetch }               from '../../hooks/useFetch'
 import TicketTable                from '../../components/tables/TicketTable'
@@ -17,14 +18,27 @@ import Spinner                    from '../../components/ui/Spinner'
 import Alert                      from '../../components/ui/Alert'
 import EmptyState                 from '../../components/ui/EmptyState'
 
-const STATUSES = ['All', 'Pending Downpayment', 'Confirmed', 'In Progress', 'Completed']
+const STATUSES = ['All', ...FILTER_STATUSES]
 
 export default function TicketsPage() {
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('All')
+  const [searchParams] = useSearchParams()
+  const initialStatus = searchParams.get('status') || 'All'
 
-  // ── Derived query args (applied on refetch) ───────────────
-  const [applied, setApplied] = useState({ search: '', status: '' })
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState(initialStatus)
+
+  const [applied, setApplied] = useState({
+    search: '',
+    status: initialStatus === 'All' ? '' : initialStatus,
+  })
+
+  useEffect(() => {
+    const q = searchParams.get('status')
+    if (q && STATUSES.includes(q)) {
+      setStatus(q)
+      setApplied({ search: '', status: q })
+    }
+  }, [searchParams])
 
   const fetcher = useCallback(
     () => ticketService.getAll({

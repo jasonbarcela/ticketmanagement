@@ -2,11 +2,12 @@
 const express    = require('express');
 const router     = express.Router();
 const ctrl       = require('../controllers/ticketController');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireRole } = require('../middleware/auth');
 
 // ── PUBLIC — no auth required ─────────────────────────────────
 // IMPORTANT: must be declared BEFORE /:id so Express doesn't
 // treat "track" as a numeric ticket ID.
+router.get('/track/lookup', ctrl.trackLookup);
 router.get('/track/:number', ctrl.trackByNumber);
 
 // ── Protected — staff/admin only ──────────────────────────────

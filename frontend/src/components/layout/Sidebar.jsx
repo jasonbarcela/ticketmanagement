@@ -9,11 +9,11 @@ import { NavLink }   from 'react-router-dom';
 import { useAuth }   from '../../context/AuthContext';
 
 const NAV_ITEMS = [
-  { to: '/',          end: true,  icon: '📊', label: 'Dashboard', roles: ['admin'] },
-  { to: '/tickets',   end: false, icon: '🎫', label: 'Tickets',    roles: ['admin', 'technician'] },
-  { to: '/customers', end: false, icon: '👥', label: 'Customers',  roles: ['admin', 'technician'] },
-  { to: '/inventory', end: false, icon: '📦', label: 'Inventory',  roles: ['admin'] },
-  { to: '/book',      end: false, icon: '📋', label: 'New Request', highlight: true, roles: ['admin', 'technician'] },
+  { to: '/',          end: true,   label: 'Dashboard', roles: ['admin'] },
+  { to: '/tickets',   end: false,  label: 'Tickets',    roles: ['admin', 'technician'] },
+  { to: '/customers', end: false,  label: 'Customers',  roles: ['admin', 'technician'] },
+  { to: '/inventory', end: false,  label: 'Inventory',  roles: ['admin'] },
+  { to: '/book',      end: false,  label: 'New Request', highlight: true, roles: ['admin', 'technician'] },
 ];
 
 export default function Sidebar({ onLogout }) {
@@ -54,11 +54,11 @@ export default function Sidebar({ onLogout }) {
             Customer Portal
           </div>
           <a href="/track" target="_blank" rel="noopener noreferrer" className="sidebar-link">
-            <span className="sidebar-link-icon">🔍</span>
+            <span className="sidebar-link"></span>
             <span className="sidebar-link-label">Track Ticket</span>
           </a>
           <a href="/book-online" target="_blank" rel="noopener noreferrer" className="sidebar-link">
-            <span className="sidebar-link-icon">🌐</span>
+            <span className="sidebar-link"></span>
             <span className="sidebar-link-label">Online Booking</span>
           </a>
         </div>

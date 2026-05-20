@@ -122,8 +122,7 @@ export default function NewTicket() {
                 onChange={v => set('service_type', v)}
               />
               <p className="hint">
-                Walk-In → status starts at <strong>Confirmed</strong>.
-                Home Service → starts at <strong>Pending Downpayment</strong>.
+                All new repairs start at <strong>Pending</strong> in the repair queue.
               </p>
             </div>
             {form.service_type === 'Home Service' && (

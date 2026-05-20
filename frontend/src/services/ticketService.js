@@ -1,6 +1,3 @@
-// ============================================================
-// services/ticketService.js — Bulletproof Ticket API Wrapper
-// ============================================================
 import api from '../lib/axios'
 
 export const ticketService = {
