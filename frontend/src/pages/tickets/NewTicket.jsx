@@ -74,7 +74,7 @@ export default function NewTicket() {
     <>
       <div className="page-header">
         <div>
-          <h1>🎫 New Repair Ticket</h1>
+          <h1> New Repair Ticket</h1>
           <p className="page-subtitle">Create a staff-assisted repair intake for an in-person customer.</p>
         </div>
         <button className="btn btn-secondary" onClick={() => navigate('/tickets')}>
@@ -93,7 +93,7 @@ export default function NewTicket() {
               <div className="form-group">
                 <label>Full Name <span className="req">*</span></label>
                 <input
-                  type="text" placeholder="e.g. Juan dela Cruz"
+                  type="text" 
                   value={form.customer_name}
                   onChange={e => set('customer_name', e.target.value)}
                   required
@@ -102,7 +102,7 @@ export default function NewTicket() {
               <div className="form-group">
                 <label>Contact Number</label>
                 <input
-                  type="text" placeholder="e.g. 09171234567"
+                  type="text" 
                   value={form.contact_number}
                   onChange={e => set('contact_number', e.target.value)}
                 />
@@ -150,7 +150,7 @@ export default function NewTicket() {
 
         {/* ── Device ────────────────────────────────────────── */}
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><h2>📱 Device Details</h2></div>
+          <div className="card-header"><h2> Device Details</h2></div>
           <div className="card-body">
             <DeviceFields form={form} onChange={set} />
           </div>

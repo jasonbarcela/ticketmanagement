@@ -54,7 +54,7 @@ export default function TicketTable({ tickets, onDelete }) {
                   background: t.service_type === 'Walk-In' ? '#DBEAFE' : '#EDE9FE',
                   color:      t.service_type === 'Walk-In' ? '#1E40AF' : '#5B21B6',
                 }}>
-                  {t.service_type === 'Walk-In' ? '🏪 Walk-In' : '🏠 Home'}
+                  {t.service_type === 'Walk-In' ? ' Walk-In' : ' Home'}
                 </span>
               </td>
 

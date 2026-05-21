@@ -91,7 +91,7 @@ export default function TicketsPage() {
       {/* ── Page Header ─────────────────────────────────────── */}
       <div className="page-header">
         <div>
-          <h1>🎫 Repair Tickets</h1>
+          <h1> Repair Tickets</h1>
           <p className="page-subtitle">All repair jobs — search, filter, and manage.</p>
         </div>
         <Link to="/tickets/new" className="btn btn-primary">
@@ -150,7 +150,6 @@ export default function TicketsPage() {
           {error   && <Alert type="error" style={{ margin: 16 }}>{error}</Alert>}
           {!loading && !error && tickets?.length === 0 && (
             <EmptyState
-              icon="🎫"
               message="No tickets found. Try adjusting your filters or create a new ticket."
               action={<Link to="/tickets/new" className="btn btn-primary" style={{ marginTop: 12 }}>+ New Ticket</Link>}
             />

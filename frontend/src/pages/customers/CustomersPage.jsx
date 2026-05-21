@@ -51,7 +51,7 @@ function CustomerModal({ customer, onSave, onClose }) {
             </div>
             <div className="form-group">
               <label>Phone / Mobile</label>
-              <input type="text" placeholder="e.g. 09171234567" value={form.phone} onChange={set('phone')} />
+              <input type="tel" value={form.phone} onChange={set('phone')} />
             </div>
             <div className="form-group">
               <label>Email Address</label>

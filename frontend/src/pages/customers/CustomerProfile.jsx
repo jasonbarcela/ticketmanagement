@@ -66,7 +66,7 @@ export default function CustomerProfile() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Registered Assets Subset */}
           <div className="card">
-            <div className="card-header"><h2>📱 Linked Hardware Devices ({profile.devices.length})</h2></div>
+            <div className="card-header"><h2> Linked Hardware Devices ({profile.devices.length})</h2></div>
             <div className="card-body">
               {profile.devices.length === 0 ? (
                 <p style={{ fontStyle: 'italic', color: 'var(--gray-400)' }}>No hardware models mapped to this client entry.</p>

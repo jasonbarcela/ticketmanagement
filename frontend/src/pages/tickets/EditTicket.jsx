@@ -487,7 +487,7 @@ export default function EditTicket() {
 
         {/* Device */}
         <div className="card" style={{ marginBottom: isHomeService ? 0 : 20 }}>
-          <div className="card-header"><h2>{isHomeService ? 'Device Information' : '📱 Device Details'}</h2></div>
+          <div className="card-header"><h2>{isHomeService ? 'Device Information' : ' Device Details'}</h2></div>
           <div className="card-body">
             <DeviceFields form={form} onChange={set} />
           </div>

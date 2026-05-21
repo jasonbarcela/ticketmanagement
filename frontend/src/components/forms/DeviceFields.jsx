@@ -27,7 +27,6 @@ export default function DeviceFields({ form, onChange }) {
         <label>Brand / Model</label>
         <input
           type="text"
-          placeholder="e.g. iPhone 13, Samsung A54"
           value={form.device_brand}
           onChange={set('device_brand')}
         />

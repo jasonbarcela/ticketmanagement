@@ -58,7 +58,7 @@ function GcashQrPlaceholder() {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       color: '#64748b', fontSize: 11, textAlign: 'center', padding: 8,
     }}>
-      <span style={{ fontSize: 28, marginBottom: 6 }}>📱</span>
+      <span style={{ fontSize: 28, marginBottom: 6 }}></span>
       <strong style={{ color: '#0f172a' }}>GCash QR</strong>
       <span style={{ marginTop: 4 }}>Placeholder — replace with shop QR image</span>
     </div>
@@ -221,12 +221,12 @@ export default function PublicBookingPage() {
         </div>
 
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><h2>📱 Device</h2></div>
+          <div className="card-header"><h2> Device</h2></div>
           <div className="card-body">
             <div className="form-grid">
               <div className="form-group">
                 <label>Device Type <span className="req">*</span></label>
-                <input type="text" placeholder="e.g. Smartphone" value={form.device_type}
+                <input type="text" value={form.device_type}
                   onChange={e => set('device_type', e.target.value)} />
               </div>
               <div className="form-group">

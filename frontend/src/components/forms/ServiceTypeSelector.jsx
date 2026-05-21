@@ -24,7 +24,7 @@ export default function ServiceTypeSelector({ value, onChange }) {
             onChange={() => onChange(type)}
             style={{ display: 'none' }}
           />
-          {type === 'Walk-In' ? '🏪' : '🏠'} {type}
+          {type === 'Walk-In' } {type}
         </label>
       ))}
     </div>
