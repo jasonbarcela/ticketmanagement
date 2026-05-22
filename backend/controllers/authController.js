@@ -2,7 +2,7 @@
 const pool = require('../config/db');
 const jwt = require('jsonwebtoken');
 const AppError = require('../utils/AppError');
-const { verifyPassword } = require('../utils/password');
+const { verifyPassword, hashPassword } = require('../utils/password');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'code_and_locks_secret_passphrase_key';
 
@@ -73,4 +73,75 @@ async function getMe(req, res, next) {
   }
 }
 
-module.exports = { login, getMe };
+async function register(req, res, next) {
+  try {
+    const { username, email, password, role } = req.body;
+
+    // Validation
+    if (!username || !email || !password || !role) {
+      throw new AppError('Username, email, password, and role are required.', 400);
+    }
+
+    if (role !== 'admin' && role !== 'technician') {
+      throw new AppError('Invalid role. Must be admin or technician.', 400);
+    }
+
+    if (password.length < 6) {
+      throw new AppError('Password must be at least 6 characters.', 400);
+    }
+
+    // Check if username already exists
+    const [existingUsers] = await pool.execute(
+      'SELECT user_id FROM staff_users WHERE username = ?',
+      [username.trim()]
+    );
+
+    if (existingUsers.length > 0) {
+      throw new AppError('Username already exists.', 400);
+    }
+
+    // Hash password
+    const hashedPassword = await hashPassword(password);
+
+    // Create user (use email as full_name for now)
+    const [result] = await pool.execute(
+      'INSERT INTO staff_users (username, password, full_name, role, is_active) VALUES (?, ?, ?, ?, 1)',
+      [username.trim(), hashedPassword, email, role]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully.',
+      user: {
+        user_id: result.insertId,
+        username: username.trim(),
+        role,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getUsers(req, res, next) {
+  try {
+    const [users] = await pool.execute(
+      'SELECT user_id, username, email, role, is_active as status FROM staff_users ORDER BY username ASC'
+    );
+
+    res.json({
+      success: true,
+      data: users.map(u => ({
+        user_id: u.user_id,
+        username: u.username,
+        email: u.email,
+        role: u.role,
+        status: u.status ? 'active' : 'disabled',
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { login, getMe, register, getUsers };

@@ -13,6 +13,10 @@ const NAV_ITEMS = [
   { to: '/tickets',   end: false,  label: 'Tickets',    roles: ['admin', 'technician'] },
   { to: '/customers', end: false,  label: 'Customers',  roles: ['admin', 'technician'] },
   { to: '/inventory', end: false,  label: 'Inventory',  roles: ['admin'] },
+  { to: '/payments',     end: false, label: 'Payments',     roles: ['admin'] },
+  { to: '/home-service', end: false, label: 'Home Service',  roles: ['admin', 'technician'] },
+  { to: '/users',        end: false, label: 'Users',         roles: ['admin'] },
+  { to: '/reports',      end: false, label: 'Reports',       roles: ['admin'] },
   { to: '/book',      end: false,  label: 'New Request', highlight: true, roles: ['admin', 'technician'] },
 ];
 

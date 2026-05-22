@@ -3,8 +3,10 @@
 // ============================================================
 import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './routes/ProtectedRoute'
+import { toast } from 'sonner'
 
 // Layout Components
 import Sidebar     from './components/layout/Sidebar'
@@ -27,9 +29,16 @@ import CustomersPage from './pages/customers/CustomersPage'
 import InventoryPage from './pages/inventory/InventoryPage'
 import BookingPage  from './pages/bookings/BookingPage'
 
+// NEW PROTECTED PAGES
+import UsersPage from './pages/users/UsersPage'
+import PaymentsPage from './pages/payments/PaymentsPage'
+import HomeServicePage from './pages/homeservice/HomeServicePage'
+import ReportsPage from './pages/reports/ReportsPage'
+
 // ── Authenticated Shell Layout ────────────────────────────────
 function AppLayout() {
   const { logout, user, isLoggedIn, loading } = useAuth()
+  const navigate = useNavigate()
   const [drawerOpen, setDrawer] = useState(false)
   const location = useLocation()
 
@@ -49,12 +58,22 @@ function AppLayout() {
     return <Navigate to="/login" replace />
   }
 
+  const handleLogout = () => {
+    logout()
+    toast.success('Logged out successfully')
+    navigate('/home', { replace: true })
+  }
+
   const titleMap = {
     '/':           'Dashboard',
     '/tickets':    'Tickets',
     '/customers':  'Customers',
     '/inventory':  'Inventory',
     '/book':       'New Request',
+    '/payments':     'Payments',
+    '/home-service': 'Home Service',
+    '/users':        'Users',
+    '/reports':      'Reports',
   }
   const path = location.pathname
   const pageTitle = titleMap[path]
@@ -65,8 +84,8 @@ function AppLayout() {
 
   return (
     <div className="app-shell">
-      <Sidebar onLogout={logout} />
-      <MobileDrawer isOpen={drawerOpen} onClose={() => setDrawer(false)} onLogout={logout} />
+      <Sidebar onLogout={handleLogout} />
+      <MobileDrawer isOpen={drawerOpen} onClose={() => setDrawer(false)} onLogout={handleLogout} />
       <div className="main-wrapper">
         <Header onMenuToggle={() => setDrawer(o => !o)} title={pageTitle} />
         <main className="main-content">
@@ -100,6 +119,10 @@ function AppRoutes() {
         <Route path="/tickets/view/:id"  element={<ProtectedRoute allowedRoles={['admin','technician']}><ViewTicket /></ProtectedRoute>} />
         <Route path="/customers"         element={<ProtectedRoute allowedRoles={['admin','technician']}><CustomersPage /></ProtectedRoute>} />
         <Route path="/book"              element={<ProtectedRoute allowedRoles={['admin','technician']}><BookingPage /></ProtectedRoute>} />
+        <Route path="/payments"          element={<ProtectedRoute allowedRoles={['admin']}><PaymentsPage /></ProtectedRoute>} />
+        <Route path="/home-service"      element={<ProtectedRoute allowedRoles={['admin','technician']}><HomeServicePage /></ProtectedRoute>} />
+        <Route path="/users"             element={<ProtectedRoute allowedRoles={['admin']}><UsersPage /></ProtectedRoute>} />
+        <Route path="/reports"           element={<ProtectedRoute allowedRoles={['admin']}><ReportsPage /></ProtectedRoute>} />
       </Route>
 
       {/* Redirect root to landing page for unauthenticated, dashboard for authenticated */}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../lib/axios'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -25,9 +26,12 @@ export default function LoginPage() {
       })
       const role = res.data.user.role
       login({ username: res.data.user.username, role })
+      toast.success('Welcome back!')
       navigate(role === 'technician' ? '/tickets' : '/')
     } catch (err) {
-      setError(err?.response?.data?.error || 'Login failed. Please try again.')
+      const errorMsg = err?.response?.data?.error || 'Login failed. Please try again.'
+      setError(errorMsg)
+      toast.error(errorMsg)
     } finally {
       setLoading(false)
     }
