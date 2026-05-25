@@ -1,12 +1,12 @@
 # Code & Locks — Phone Repair Shop Management System
 
-Full-stack repair shop prototype for **Code & Locks** in Tambo, Pamplona, Camarines Sur. Supports walk-in repairs, home service bookings, inventory, billing, and public repair tracking.
+Full-stack repair shop system for **Code & Locks**, Tambo, Pamplona, Camarines Sur. Walk-in repairs, home service, inventory, billing, public tracking, technician accounts, repair checklists, and photo documentation.
 
 **Stack:** React 18 · Vite · Express · MySQL
 
 ---
 
-## Setup
+## Quick start (presentation)
 
 ### 1 — Database
 
@@ -15,8 +15,12 @@ mysql -u root -p < database/schema.sql
 mysql -u root -p < database/seed.sql
 ```
 
-`schema.sql` contains the complete structure (including Home Service statuses: Pending, Approved, On The Way, Completed).  
-`seed.sql` contains demo data only.
+**Already have a database?** Apply upgrades only:
+
+```bash
+cd backend
+node scripts/runMigration.js
+```
 
 ### 2 — Backend
 
@@ -24,8 +28,9 @@ mysql -u root -p < database/seed.sql
 cd backend
 npm install
 npm start
-# http://localhost:3001/api/health
 ```
+
+Health check: http://localhost:3001/api/health
 
 ### 3 — Frontend
 
@@ -33,10 +38,9 @@ npm start
 cd frontend
 npm install
 npm run dev
-# http://localhost:5173
 ```
 
-API calls proxy `/api` → `http://localhost:3001`.
+App: http://localhost:5173
 
 ---
 
@@ -47,27 +51,34 @@ API calls proxy `/api` → `http://localhost:3001`.
 | `admin`      | `admin123` | Admin       |
 | `technician` | `1234`     | Technician  |
 
-Passwords are stored as **bcrypt** hashes in the database.
+Demo ticket for public tracking: **CL-2026-00001**
 
 ---
 
-## Workflows
+## Demo flow (suggested)
 
-### Walk-in repair
+1. **Public** — Open `/track`, enter `CL-2026-00001` → progress, problems, technician notes, checklist, parts.
+2. **Admin** — Login → Dashboard → **Home Service** (`/bookings`) to approve requests.
+3. **Technician** — Login → **My Profile** → assigned tickets → **Edit Ticket** → repair steps, photos, notes.
+4. **Admin** — **Technicians** (`/staff`) → create account → **Inventory** → parts & stock.
+5. **Billing** — View ticket → Record payment → status updates immediately.
 
-```
-Pending → Diagnosing → Repairing → Ready for Pickup → Completed
-```
+---
 
-### Home service
+## Staff routes
 
-```
-Pending → Approved → On The Way → Completed
-```
-
-1. Customer books online or staff submits intake (`/book` or `/book-online`).
-2. Admin approves home service in **Home Service Bookings**.
-3. Technician updates status and assignment in **Edit Ticket**.
+| Path                 | Access              | Page                    |
+|----------------------|---------------------|-------------------------|
+| `/`                  | Admin               | Dashboard               |
+| `/tickets`           | Admin, Technician   | Ticket list             |
+| `/tickets/view/:id`  | Admin, Technician   | View + billing          |
+| `/tickets/edit/:id`  | Admin, Technician   | Edit + checklist/photos |
+| `/bookings`          | Admin               | Home service approvals  |
+| `/book`              | Admin, Technician   | Counter intake          |
+| `/inventory`         | Admin, Technician*  | Parts (*tech read-only) |
+| `/staff`             | Admin               | Manage technicians      |
+| `/profile`           | Technician          | My profile + assignments|
+| `/customers`         | Admin, Technician   | Customers               |
 
 ---
 
@@ -77,21 +88,17 @@ Pending → Approved → On The Way → Completed
 |----------------|--------------------------------------|
 | `/home`        | Landing page                         |
 | `/book-online` | Online booking + GCash downpayment   |
-| `/track`       | Track by **ticket number** or **contact number** |
+| `/track`       | Track by ticket number or contact    |
 | `/login`       | Staff login                          |
 
 ---
 
-## Staff routes
+## Large photo uploads
 
-| Path                 | Access             | Page                    |
-|----------------------|--------------------|-------------------------|
-| `/`                  | Admin              | Dashboard               |
-| `/tickets`           | Admin, Technician  | Ticket list             |
-| `/tickets/edit/:id`  | Admin, Technician  | Edit ticket             |
-| `/bookings`          | Admin              | Home service approvals  |
-| `/book`              | Admin, Technician  | Counter intake          |
-| `/inventory`         | Admin              | Parts stock             |
+- Express body limit: **20mb**
+- DB column `ticket_photos.file_url`: **LONGTEXT**
+- Frontend compresses images before upload (max 1200px, JPEG 70%)
+- Optional MySQL server setting: `max_allowed_packet=16M` in `my.ini` / `my.cnf`
 
 ---
 
@@ -100,11 +107,9 @@ Pending → Approved → On The Way → Completed
 ```
 code-and-locks-finals/
 ├── database/
-│   ├── schema.sql    # Full structure (import first)
-│   └── seed.sql      # Demo data (import second)
-├── backend/          # Express API
-└── frontend/src/     # React app
+│   ├── schema.sql
+│   ├── seed.sql
+│   └── migrations/
+├── backend/
+└── frontend/src/
 ```
-
----
-

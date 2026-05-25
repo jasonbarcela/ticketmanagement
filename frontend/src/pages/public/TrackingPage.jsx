@@ -8,17 +8,19 @@ import { HOME_SERVICE_STEPPER } from '../../constants/homeService'
 import { formatServiceDate, formatPreferredTime } from '../../lib/formatSchedule'
 
 const WALKIN_ICONS = {
-  Pending: '⏳',
-  Diagnosing: '🔍',
-  Repairing: '🔧',
-  'Ready for Pickup': '📦',
+  Pending: '✓',
+  Diagnosing: '✓',
+  Repairing: '✓',
+  'Ready for Pickup': '✓',
   Completed: '✓',
 }
 
+const PHOTO_STAGES = ['Before', 'During', 'After']
+
 const HOME_ICONS = {
-  Pending: '⏳',
+  Pending: '✓',
   Approved: '✓',
-  'On The Way': '🚗',
+  'On The Way': '✓',
   Completed: '✓',
 }
 
@@ -70,6 +72,23 @@ function PublicStepper({ currentStatus, serviceType = 'Walk-In' }) {
   )
 }
 
+function filterPublicLogNotes(notes) {
+  if (!notes) return ''
+  return notes
+    .replace(/\s*via\s+(editor|system|api|backend)\s*/gi, ' ')
+    .replace(/\bticket_id\b/gi, 'ticket')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function logDisplayLabel(changeType) {
+  if (changeType === 'Tech Note') return 'Additional Findings'
+  if (changeType === 'Photo Added') return 'Repair Documentation'
+  if (changeType === 'Checklist Update') return 'Repair Progress'
+  if (changeType === 'Customer Update') return 'Update'
+  return 'Status Update'
+}
+
 function ActivityTimeline({ logs = [] }) {
   if (!logs.length) {
     return (
@@ -85,7 +104,14 @@ function ActivityTimeline({ logs = [] }) {
         <li key={`${log.logged_at}-${i}`}>
           <span className="track-timeline-dot" />
           <div>
-            <p className="track-timeline-note">{log.notes}</p>
+            <span style={{
+              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+              color: log.change_type === 'Tech Note' ? '#7C3AED' : 'var(--gray-500)',
+              display: 'block', marginBottom: 4,
+            }}>
+              {logDisplayLabel(log.change_type)}
+            </span>
+            <p className="track-timeline-note">{filterPublicLogNotes(log.notes)}</p>
             <time>
               {new Date(log.logged_at).toLocaleString('en-PH', {
                 month: 'short', day: 'numeric', year: 'numeric',
@@ -127,9 +153,17 @@ function TechnicianBlock({ ticket }) {
   )
 }
 
-function TicketResult({ ticket, logs, onReset }) {
+const php = (v) => `₱${parseFloat(v || 0).toFixed(2)}`
+
+function TicketResult({ ticket, logs, partsData, problemItems, repairSteps, photos, onReset }) {
   const device = [ticket.device_brand, ticket.device_type].filter(Boolean).join(' — ')
   const isHome = ticket.service_type === 'Home Service'
+  const partsVisible = partsData?.visible === true
+  const parts = partsData?.parts || []
+  const repairNotes = (ticket.repair_notes || '').trim()
+  const confirmedIssues = problemItems.filter(i => i.is_checked).length
+  const hasPhotos = photos.length > 0
+  const photoStages = PHOTO_STAGES.filter(s => photos.some(p => p.photo_stage === s))
 
   return (
     <div className="track-result">
@@ -141,50 +175,194 @@ function TicketResult({ ticket, logs, onReset }) {
             <StatusBadge status={ticket.status} />
             <span className="track-payment-badge">{ticket.payment_status || 'Unpaid'}</span>
           </div>
+          {device && (
+            <p style={{ fontSize: 14, color: 'var(--gray-600)', marginTop: 8 }}>{device} · {ticket.service_type}</p>
+          )}
           <PublicStepper currentStatus={ticket.status} serviceType={ticket.service_type} />
         </div>
       </section>
 
+      {problemItems.length > 0 && (
+        <section className="card">
+          <div className="card-header"><h2>What You Reported</h2></div>
+          <div className="card-body">
+            <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 12 }}>
+              {confirmedIssues} of {problemItems.length} issue{problemItems.length !== 1 ? 's' : ''} confirmed on your device
+            </p>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {problemItems.map((item, i) => (
+                <li
+                  key={i}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: '10px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 14,
+                  }}
+                >
+                  <span style={{ fontSize: 18, lineHeight: 1.2 }}>{item.is_checked ? '✅' : '⏳'}</span>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 2 }}>
+                      {item.is_checked ? 'Confirmed by our technician' : 'Pending confirmation'}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="hint" style={{ marginTop: 12, fontSize: 12 }}>
+              These are the issues you described when you submitted your device for repair.
+            </p>
+          </div>
+        </section>
+      )}
+
       <section className="card">
-        <div className="card-header"><h2>Device</h2></div>
-        <div className="card-body track-details">
-          <div className="track-detail-row">
-            <span>Device</span>
-            <strong>{device || '—'}</strong>
-          </div>
-          <div className="track-detail-row">
-            <span>Service type</span>
-            <strong>{ticket.service_type}</strong>
-          </div>
-          {ticket.problem_desc && (
-            <div className="track-detail-row">
-              <span>Issue</span>
-              <strong>{ticket.problem_desc}</strong>
+        <div className="card-header"><h2>🔍 Diagnostics &amp; Findings</h2></div>
+        <div className="card-body">
+          {ticket.diagnostic_notes ? (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', marginBottom: 4 }}>
+                Diagnostic Notes
+              </div>
+              <p style={{ fontSize: 14, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{ticket.diagnostic_notes}</p>
             </div>
-          )}
-          {isHome && ticket.service_date && (
-            <div className="track-detail-row">
-              <span>Scheduled date</span>
-              <strong>{formatServiceDate(String(ticket.service_date).slice(0, 10))}</strong>
+          ) : null}
+          {repairNotes ? (
+            <div style={{ marginBottom: ticket.additional_findings ? 16 : 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', marginBottom: 4 }}>
+                Repair Notes
+              </div>
+              <p style={{ fontSize: 14, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{repairNotes}</p>
             </div>
-          )}
-          {isHome && ticket.preferred_time && (
-            <div className="track-detail-row">
-              <span>Preferred time</span>
-              <strong>{formatPreferredTime(String(ticket.preferred_time).slice(0, 5))}</strong>
+          ) : null}
+          {ticket.additional_findings ? (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', marginBottom: 4 }}>
+                Additional Findings
+              </div>
+              <p style={{ fontSize: 14, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{ticket.additional_findings}</p>
             </div>
+          ) : null}
+          {!ticket.diagnostic_notes && !repairNotes && !ticket.additional_findings && (
+            <p style={{ color: 'var(--gray-500)', fontSize: 14, fontStyle: 'italic', margin: 0 }}>
+              Diagnostic findings will appear here as your repair progresses.
+            </p>
           )}
         </div>
       </section>
+
+      {logs.length > 0 && (
+        <section className="card">
+          <div className="card-header"><h2>Activity</h2></div>
+          <div className="card-body">
+            <ActivityTimeline logs={logs} />
+          </div>
+        </section>
+      )}
 
       <TechnicianBlock ticket={ticket} />
 
-      <section className="card">
-        <div className="card-header"><h2>Activity</h2></div>
-        <div className="card-body">
-          <ActivityTimeline logs={logs} />
-        </div>
-      </section>
+      {repairSteps.length > 0 && (
+        <section className="card">
+          <div className="card-header"><h2>How We Repair Your Device</h2></div>
+          <div className="card-body">
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
+              {repairSteps.map((item, i) => (
+                <li key={i} style={{ marginBottom: 8 }}>{item.label}</li>
+              ))}
+            </ol>
+            <p className="hint" style={{ marginTop: 12, fontSize: 12 }}>
+              Standard steps our technicians follow during your repair.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {partsVisible && (
+        <section className="card">
+          <div className="card-header"><h2>Parts Used in Your Repair</h2></div>
+          <div className="card-body">
+            {parts.length === 0 ? (
+              <p style={{ color: 'var(--gray-500)', fontSize: 14, fontStyle: 'italic' }}>
+                No parts have been recorded yet for this repair.
+              </p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--gray-200)' }}>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Part</th>
+                    <th style={{ padding: 8 }}>Qty</th>
+                    <th style={{ textAlign: 'right', padding: 8 }}>Price</th>
+                    <th style={{ textAlign: 'right', padding: 8 }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parts.map((p, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                      <td style={{ padding: 8 }}>
+                        {p.part_name}
+                        {p.customer_provided && (
+                          <span style={{
+                            marginLeft: 8, fontSize: 10, fontWeight: 700,
+                            background: '#EFF6FF', color: '#1D4ED8', padding: '2px 6px', borderRadius: 4,
+                          }}>
+                            Your Part
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: 8, textAlign: 'center' }}>{p.quantity}</td>
+                      <td style={{ padding: 8, textAlign: 'right' }}>
+                        {p.customer_provided ? '—' : php(p.unit_price)}
+                      </td>
+                      <td style={{ padding: 8, textAlign: 'right', fontWeight: 600 }}>
+                        {p.customer_provided ? '—' : php(p.subtotal)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="hint" style={{ marginTop: 12, fontSize: 12 }}>
+              Parts are charged at retail price and included in your total bill.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {hasPhotos && (
+        <section className="card">
+          <div className="card-header"><h2>Repair Documentation</h2></div>
+          <div className="card-body">
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${photoStages.length}, 1fr)`,
+              gap: 16,
+            }}>
+              {photoStages.map(stage => (
+                <div key={stage}>
+                  <h3 style={{ fontSize: 13, marginBottom: 8, color: 'var(--gray-600)' }}>{stage}</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {photos.filter(p => p.photo_stage === stage).map(p => (
+                      <img
+                        key={p.photo_id}
+                        src={p.file_url}
+                        alt={p.caption || stage}
+                        style={{
+                          width: '100%', height: 90, objectFit: 'cover', borderRadius: 6,
+                          cursor: 'pointer', border: '1px solid var(--gray-200)',
+                        }}
+                        onClick={() => window.open(p.file_url, '_blank')}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="hint" style={{ marginTop: 12, fontSize: 12 }}>
+              Photos are taken by the technician to document the repair process.
+            </p>
+          </div>
+        </section>
+      )}
 
       <div className="track-actions">
         <button type="button" className="btn btn-secondary" onClick={onReset}>
@@ -205,13 +383,56 @@ export default function TrackingPage() {
   const [error, setError] = useState('')
   const [ticket, setTicket] = useState(null)
   const [logs, setLogs] = useState([])
+  const [partsData, setPartsData] = useState({ visible: false, parts: [] })
+  const [problemItems, setProblemItems] = useState([])
+  const [repairSteps, setRepairSteps] = useState([])
+  const [photos, setPhotos] = useState([])
+  const [trackNumber, setTrackNumber] = useState('')
 
   const reset = () => {
     setTicket(null)
     setLogs([])
+    setPartsData({ visible: false, parts: [] })
+    setProblemItems([])
+    setRepairSteps([])
+    setPhotos([])
+    setTrackNumber('')
     setError('')
     setTicketQuery('')
     setContactQuery('')
+  }
+
+  const fetchExtras = async (ticketNumber) => {
+    const num = ticketNumber.trim().toUpperCase()
+    const [partsRes, checklistRes, photosRes] = await Promise.all([
+      api.get(`/tickets/track/parts/${num}`).then(r => r.data).catch(() => ({ visible: false, parts: [] })),
+      api.get(`/tickets/track/checklist/${num}`).then(r => r.data).catch(() => ({ items: [] })),
+      api.get(`/tickets/track/photos/${num}`).then(r => r.data).catch(() => ({ photos: [] })),
+    ])
+    setPartsData(partsRes)
+    const allItems = checklistRes.items || []
+    setProblemItems(
+      checklistRes.problems?.length
+        ? checklistRes.problems
+        : allItems.filter(i => i.checklist_type === 'Problem')
+    )
+    setRepairSteps(
+      checklistRes.repair_steps?.length
+        ? checklistRes.repair_steps
+        : allItems.filter(i => !i.checklist_type || i.checklist_type === 'Repair')
+    )
+    setPhotos(photosRes.photos || [])
+  }
+
+  const refreshTicket = async (ticketNumber) => {
+    const num = (ticketNumber || trackNumber).trim().toUpperCase()
+    if (!num) return
+    try {
+      const res = await api.get(`/tickets/track/${num}`)
+      setTicket(res.data.ticket)
+      setLogs(res.data.logs || [])
+      await fetchExtras(num)
+    } catch (_) {}
   }
 
   const doLookup = async (opts = {}) => {
@@ -235,8 +456,12 @@ export default function TrackingPage() {
         ? { ticket: ticketVal }
         : { contact: contactVal }
       const res = await api.get('/tickets/track/lookup', { params })
-      setTicket(res.data.ticket)
+      const t = res.data.ticket
+      setTicket(t)
       setLogs(res.data.logs || [])
+      const num = t.ticket_number
+      setTrackNumber(num)
+      await fetchExtras(num)
     } catch (err) {
       setError(err?.response?.data?.error || 'No matching repair found.')
     } finally {
@@ -253,6 +478,12 @@ export default function TrackingPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!ticket?.ticket_number) return undefined
+    const timer = setInterval(() => refreshTicket(ticket.ticket_number), 20000)
+    return () => clearInterval(timer)
+  }, [ticket?.ticket_number])
 
   const handleSubmit = e => {
     e.preventDefault()
@@ -328,7 +559,17 @@ export default function TrackingPage() {
         </section>
       )}
 
-      {ticket && <TicketResult ticket={ticket} logs={logs} onReset={reset} />}
+      {ticket && (
+        <TicketResult
+          ticket={ticket}
+          logs={logs}
+          partsData={partsData}
+          problemItems={problemItems}
+          repairSteps={repairSteps}
+          photos={photos}
+          onReset={reset}
+        />
+      )}
 
       {!ticket && (
         <p className="track-footer-link">

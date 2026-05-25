@@ -148,7 +148,11 @@ async function attachPart(req, res, next) {
     });
   } catch (err) {
     // Intercept database model transaction failures gracefully
-    if (err.message.includes('Insufficient') || err.message.includes('not found')) {
+    if (
+      err.message.includes('Insufficient') ||
+      err.message.includes('not found') ||
+      err.message.includes('already attached')
+    ) {
       return next(new AppError(err.message, 400));
     }
     next(err);
@@ -177,11 +181,70 @@ async function detachPart(req, res, next) {
   }
 }
 
+// ── PATCH /api/inventory/:partId ─────────────────────────────
+async function editPart(req, res, next) {
+  try {
+    const partId = parseInt(req.params.partId, 10);
+    if (!partId) throw new AppError('Invalid part ID.', 400);
+
+    const { part_name, category, cost_price, retail_price } = req.body;
+    const hasField = [part_name, category, cost_price, retail_price].some(
+      v => v !== undefined && v !== null
+    );
+    if (!hasField) {
+      throw new AppError('At least one field (part_name, category, cost_price, retail_price) is required.', 400);
+    }
+
+    const part = await InvModel.findById(partId);
+    if (!part) throw new AppError('Part not found.', 404);
+
+    await InvModel.updatePartDetails(partId, { part_name, category, cost_price, retail_price });
+
+    res.json({
+      success: true,
+      message: `Part "${part.part_code}" updated successfully.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── DELETE /api/inventory/:partId ────────────────────────────
+async function deletePart(req, res, next) {
+  try {
+    const partId = parseInt(req.params.partId, 10);
+    if (!partId) throw new AppError('Invalid part ID.', 400);
+
+    const part = await InvModel.findById(partId);
+    if (!part) throw new AppError('Part not found.', 404);
+
+    try {
+      await InvModel.deletePart(partId);
+    } catch (err) {
+      if (err.message && err.message.includes('active')) {
+        return res.status(409).json({
+          error: 'This part cannot be deleted because it is attached to one or more active repair tickets. Remove it from those tickets first.',
+        });
+      }
+      throw err;
+    }
+
+    res.json({
+      success: true,
+      message: `Part "${part.part_code}" deleted from inventory.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getAll,
   adjustStock,
   addPart,
   getTicketParts,
   attachPart,
-  detachPart
+  detachPart,
+  editPart,
+  deletePart,
 };

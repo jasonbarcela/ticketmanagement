@@ -47,7 +47,7 @@ export default function CustomerProfile() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20 }}>
         {/* Contact Metadata Block */}
         <div className="card" style={{ height: 'fit-content' }}>
-          <div className="card-header"><h2>📋 Profile Information</h2></div>
+          <div className="card-header"><h2> Profile Information</h2></div>
           <div className="card-body" style={{ fontSize: 14 }}>
             <div style={{ marginBottom: 12 }}>
               <strong>Phone Line:</strong> <span style={{ color: 'var(--navy)' }}>{profile.phone || '—'}</span>

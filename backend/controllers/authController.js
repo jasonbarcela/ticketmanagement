@@ -44,10 +44,10 @@ async function login(req, res, next) {
       message: 'Login successful.',
       token,
       user: {
-        id: user.user_id,
+        user_id: user.user_id,
         username: user.username,
         role: user.role,
-        fullName: user.full_name || user.username,
+        full_name: user.full_name || user.username,
       },
     });
   } catch (err) {

@@ -1,4 +1,5 @@
 // pages/public/PublicBookingPage.jsx — Public repair intake with home service downpayment
+import gcashQr from './images/gcashqr.jpeg'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../lib/axios'
@@ -9,13 +10,28 @@ import {
 } from '../../constants/homeService'
 import HomeServiceScheduleFields from '../../components/forms/HomeServiceScheduleFields'
 
+const DEVICE_ISSUES = [
+  'Screen cracked / broken',
+  'Battery draining fast',
+  'Won\'t turn on / no power',
+  'Charging port not working',
+  'Water damage',
+  'Speaker / microphone issue',
+  'Camera not working',
+  'Software / virus problem',
+  'Overheating',
+  'Slow performance',
+  'Wi-Fi / Bluetooth not connecting',
+  'Other issue',
+]
+
 const BLANK = {
   customer_name: '',
   contact_number: '',
   customer_email: '',
   device_type: '',
   device_brand: '',
-  problem_desc: '',
+  selectedIssues: [],
   home_service: false,
   address: '',
   service_date: '',
@@ -53,14 +69,30 @@ function PublicShell({ children }) {
 function GcashQrPlaceholder() {
   return (
     <div style={{
-      width: 160, height: 160, margin: '0 auto 16px',
-      border: '2px dashed #94a3b8', borderRadius: 8, background: '#fff',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      color: '#64748b', fontSize: 11, textAlign: 'center', padding: 8,
+      width: 180,
+      margin: '0 auto 16px',
+      textAlign: 'center',
     }}>
-      <span style={{ fontSize: 28, marginBottom: 6 }}></span>
-      <strong style={{ color: '#0f172a' }}>GCash QR</strong>
-      <span style={{ marginTop: 4 }}>Placeholder — replace with shop QR image</span>
+      <img
+        src={gcashQr}
+        alt="GCash QR Code"
+        style={{
+          width: '100%',
+          borderRadius: 12,
+          border: '2px solid #CBD5E1',
+          background: '#fff',
+          padding: 8,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        }}
+      />
+
+      <div style={{
+        marginTop: 8,
+        fontSize: 12,
+        color: '#64748b',
+      }}>
+        Scan to pay via GCash
+      </div>
     </div>
   )
 }
@@ -145,7 +177,7 @@ export default function PublicBookingPage() {
     if (!form.contact_number.trim()) return setError('Contact number is required.')
     if (!form.device_type.trim()) return setError('Device type is required.')
     if (!form.device_brand.trim()) return setError('Device brand/model is required.')
-    if (!form.problem_desc.trim()) return setError('Please describe the issue.')
+    if (form.selectedIssues.length === 0) return setError('Please select at least one issue.')
     if (form.home_service) {
       if (!form.address.trim()) return setError('Home address is required for home service.')
       if (!form.service_date) return setError('Assigned date is required for home service.')
@@ -163,7 +195,7 @@ export default function PublicBookingPage() {
         email: form.customer_email.trim() || undefined,
         device_type: form.device_type.trim(),
         device_brand: form.device_brand.trim(),
-        problem_desc: form.problem_desc.trim(),
+        problem_desc: form.selectedIssues.join(', '),
         home_service: form.home_service,
         service_type: form.home_service ? 'Home Service' : 'Walk-In',
         address: form.home_service ? form.address.trim() : undefined,
@@ -190,7 +222,7 @@ export default function PublicBookingPage() {
   return (
     <PublicShell>
       <div style={{ marginBottom: 28, textAlign: 'center' }}>
-        <h1 style={{ fontSize: '1.7rem', marginBottom: 6 }}>📋 Book a Repair</h1>
+        <h1 style={{ fontSize: '1.7rem', marginBottom: 6 }}>Book a Repair</h1>
         <p style={{ color: 'var(--gray-500)', fontSize: 14 }}>
           Walk-in or home service. Home visits require a GCash downpayment (manual verification).
         </p>
@@ -213,7 +245,7 @@ export default function PublicBookingPage() {
                   onChange={e => set('contact_number', e.target.value)} />
               </div>
               <div className="form-group full">
-                <label>Email <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>(optional)</span></label>
+                <label>Email <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}></span></label>
                 <input type="email" value={form.customer_email} onChange={e => set('customer_email', e.target.value)} />
               </div>
             </div>
@@ -235,16 +267,54 @@ export default function PublicBookingPage() {
                   onChange={e => set('device_brand', e.target.value)} />
               </div>
               <div className="form-group full">
-                <label>Issue / Problem <span className="req">*</span></label>
-                <textarea rows={3} placeholder="Describe the problem..."
-                  value={form.problem_desc} onChange={e => set('problem_desc', e.target.value)} />
+                <label>Issues / Problems <span className="req">*</span></label>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                  gap: 8, marginTop: 6,
+                }}>
+                  {DEVICE_ISSUES.map(issue => {
+                    const checked = form.selectedIssues.includes(issue)
+                    return (
+                      <label
+                        key={issue}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                          border: `2px solid ${checked ? 'var(--blue)' : 'var(--gray-200)'}`,
+                          background: checked ? 'var(--light-blue)' : '#fff',
+                          fontSize: 14,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setForm(f => ({
+                              ...f,
+                              selectedIssues: checked
+                                ? f.selectedIssues.filter(i => i !== issue)
+                                : [...f.selectedIssues, issue],
+                            }))
+                          }}
+                          style={{ width: 16, height: 16, flexShrink: 0 }}
+                        />
+                        {issue}
+                      </label>
+                    )
+                  })}
+                </div>
+                {form.selectedIssues.length > 0 && (
+                  <p className="hint" style={{ marginTop: 8 }}>
+                    Selected: <strong>{form.selectedIssues.join(', ')}</strong>
+                  </p>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><h2>🏠 Service Option</h2></div>
+          <div className="card-header"><h2> Service Option</h2></div>
           <div className="card-body">
             <label style={{
               display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer',
@@ -284,7 +354,7 @@ export default function PublicBookingPage() {
                   padding: '18px', borderRadius: 8, background: '#F0FDF4',
                   border: '1px solid #86EFAC', marginBottom: 16, textAlign: 'center',
                 }}>
-                  <div style={{ fontWeight: 700, color: '#166534', marginBottom: 12 }}>💚 GCash Payment Instructions</div>
+                  <div style={{ fontWeight: 700, color: '#166534', marginBottom: 12 }}> GCash Payment Instructions</div>
                   <GcashQrPlaceholder />
                   <div style={{ fontSize: 14, color: '#14532d', lineHeight: 1.7 }}>
                     <div>Amount: <strong>₱{HOME_SERVICE_DOWNPAYMENT.toFixed(2)}</strong></div>
@@ -321,7 +391,7 @@ export default function PublicBookingPage() {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button type="submit" className="btn btn-primary" disabled={submitting} style={{ minWidth: 220 }}>
-            {submitting ? '⏳ Submitting…' : '📋 Submit Request'}
+            {submitting ? '⏳ Submitting…' : ' Submit Request'}
           </button>
         </div>
       </form>

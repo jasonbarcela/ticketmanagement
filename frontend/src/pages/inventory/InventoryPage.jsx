@@ -84,7 +84,7 @@ function AdjustStockModal({ part, onSave, onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>📦 Adjust Stock — {part.part_code}</h3>
+          <h3> Adjust Stock — {part.part_code}</h3>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit}>
@@ -148,6 +148,82 @@ function AdjustStockModal({ part, onSave, onClose }) {
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={saving || newQty === null}>
               {saving ? '⏳ Saving...' : '💾 Update Stock'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Edit Part Modal ───────────────────────────────────────────
+function EditPartModal({ part, onSave, onClose }) {
+  const [form, setForm] = useState({
+    part_name: part.part_name,
+    category: part.category,
+    cost_price: String(part.cost_price),
+    retail_price: String(part.retail_price),
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const set = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
+
+  const handleSubmit = async e => {
+    e.preventDefault()
+    if (!form.part_name.trim()) return setError('Part name is required.')
+    setSaving(true)
+    try {
+      await onSave(part.part_id, {
+        part_name: form.part_name.trim(),
+        category: form.category,
+        cost_price: parseFloat(form.cost_price) || 0,
+        retail_price: parseFloat(form.retail_price) || 0,
+      })
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Update failed.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>✏️ Edit Part — {part.part_code}</h3>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && <Alert type="error" style={{ marginBottom: 12 }}>{error}</Alert>}
+            <p className="hint" style={{ marginBottom: 12 }}>
+              Part code <strong>{part.part_code}</strong> cannot be changed.
+            </p>
+            <div className="form-group">
+              <label>Part Name <span className="req">*</span></label>
+              <input type="text" value={form.part_name} onChange={set('part_name')} required />
+            </div>
+            <div className="form-group">
+              <label>Category</label>
+              <select value={form.category} onChange={set('category')}>
+                {PHONE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Cost Price (₱)</label>
+                <input type="number" min="0" step="0.01" value={form.cost_price} onChange={set('cost_price')} />
+              </div>
+              <div className="form-group">
+                <label>Retail Price (₱)</label>
+                <input type="number" min="0" step="0.01" value={form.retail_price} onChange={set('retail_price')} />
+              </div>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? '⏳ Saving...' : '💾 Save'}
             </button>
           </div>
         </form>
@@ -252,10 +328,11 @@ function AddPartModal({ onSave, onClose }) {
 export default function InventoryPage() {
   const { isAdmin } = useAuth()
   const [adjusting,  setAdjusting]  = useState(null)
+  const [editing,    setEditing]    = useState(null)
   const [addingPart, setAddingPart] = useState(false)
   const [flash,      setFlash]      = useState(null)
   const [search,     setSearch]     = useState('')
-  const [filterCat,  setFilterCat]  = useState('')
+  const [lowStockOpen, setLowStockOpen] = useState(false)
 
   const { data: inventory, loading, error, refetch } = useFetch(
     () => inventoryService.getAll(), []
@@ -280,29 +357,75 @@ export default function InventoryPage() {
     refetch()
   }
 
-  // Derived stats
-  const lowStockItems = useMemo(() =>
-    inventory?.filter(p => p.quantity <= LOW_STOCK_THRESHOLD) || [], [inventory])
-  const outOfStock    = useMemo(() =>
-    inventory?.filter(p => p.quantity === 0) || [], [inventory])
+  const handleEditPart = async (partId, payload) => {
+    await inventoryService.editPart(partId, payload)
+    showFlash('Part details updated.')
+    setEditing(null)
+    refetch()
+  }
 
-  // Filtered list
+  const handleDeletePart = async (part) => {
+    if (!confirm(`Delete "${part.part_name}" (${part.part_code}) from inventory?`)) return
+    try {
+      await inventoryService.deletePart(part.part_id)
+      showFlash(`"${part.part_name}" removed from catalog.`)
+      refetch()
+    } catch (err) {
+      const msg = err?.response?.status === 409
+        ? (err?.response?.data?.error || 'This part cannot be deleted because it is attached to one or more active repair tickets.')
+        : (err?.response?.data?.error || 'Delete failed.')
+      showFlash(msg, 'error')
+    }
+  }
+
+  const exportCsv = () => {
+    const rows = filtered
+    if (!rows.length) return
+    const header = ['Part Code', 'Part Name', 'Category', 'Quantity', 'Cost Price', 'Retail Price']
+    const lines = [
+      header.join(','),
+      ...rows.map(p => [
+        p.part_code,
+        `"${String(p.part_name).replace(/"/g, '""')}"`,
+        `"${String(p.category).replace(/"/g, '""')}"`,
+        p.quantity,
+        parseFloat(p.cost_price).toFixed(2),
+        parseFloat(p.retail_price).toFixed(2),
+      ].join(',')),
+    ]
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `inventory-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const lowStockCount = useMemo(() =>
+    inventory?.filter(p => p.quantity <= LOW_STOCK_THRESHOLD).length || 0, [inventory])
+  const lowStockItems = useMemo(() =>
+    inventory?.filter(p => p.quantity <= LOW_STOCK_THRESHOLD && p.quantity > 0) || [], [inventory])
+  const outOfStock = useMemo(() =>
+    inventory?.filter(p => p.quantity === 0) || [], [inventory])
+  const totalUnits = useMemo(() =>
+    inventory?.reduce((sum, p) => sum + (parseInt(p.quantity, 10) || 0), 0) || 0, [inventory])
+
   const filtered = useMemo(() => {
     if (!inventory) return []
+    const q = search.toLowerCase().trim()
     return inventory.filter(p => {
-      const matchSearch = !search ||
-        p.part_name.toLowerCase().includes(search.toLowerCase()) ||
-        p.part_code.toLowerCase().includes(search.toLowerCase())
-      const matchCat = !filterCat || p.category === filterCat
-      return matchSearch && matchCat
+      if (!q) return true
+      return p.part_name.toLowerCase().includes(q) ||
+        p.part_code.toLowerCase().includes(q)
     })
-  }, [inventory, search, filterCat])
+  }, [inventory, search])
 
   return (
     <>
       <div className="page-header">
         <div>
-          <h1>📦 Parts Inventory</h1>
+          <h1> Parts Inventory</h1>
           <p className="page-subtitle">Essential parts stock — name, quantity, and status.</p>
         </div>
         {isAdmin && (
@@ -315,17 +438,48 @@ export default function InventoryPage() {
       {flash && <Alert type={flash.type} style={{ marginBottom: 16 }}>{flash.msg}</Alert>}
       {error && <Alert type="error"      style={{ marginBottom: 16 }}>{error}</Alert>}
 
-      {/* Low Stock Alert */}
-      {lowStockItems.length > 0 && (
-        <Alert type="error" style={{ marginBottom: 16 }}>
-          ⚠️ <strong>{outOfStock.length > 0 ? `${outOfStock.length} out of stock` : ''}</strong>
-          {outOfStock.length > 0 && lowStockItems.length > outOfStock.length ? ', ' : ''}
-          {lowStockItems.length > outOfStock.length
-            ? `${lowStockItems.length - outOfStock.length} low stock`
-            : ''}
-          {outOfStock.length === 0 && ` — ${lowStockItems.length} part(s) are running low`}.
-          {isAdmin ? ' Restock to avoid repair delays.' : ' Contact admin to restock.'}
-        </Alert>
+      {(lowStockItems.length > 0 || outOfStock.length > 0) && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div
+            className="card-header"
+            style={{ cursor: 'pointer' }}
+            onClick={() => setLowStockOpen(o => !o)}
+          >
+            <h2 style={{ margin: 0 }}>
+              ⚠️ Stock alerts — {outOfStock.length} out of stock, {lowStockItems.length} low stock
+            </h2>
+            <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>{lowStockOpen ? '▲' : '▼'}</span>
+          </div>
+          {lowStockOpen && (
+            <div className="card-body" style={{ padding: 0 }}>
+              {[...outOfStock, ...lowStockItems].map(p => (
+                <div
+                  key={p.part_id}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 16px', borderBottom: '1px solid var(--gray-100)', gap: 12,
+                  }}
+                >
+                  <div>
+                    <strong>{p.part_name}</strong>
+                    <span style={{ fontSize: 12, color: 'var(--gray-500)', marginLeft: 8 }}>
+                      {p.part_code} · {p.quantity} unit(s)
+                    </span>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => setAdjusting(p)}
+                    >
+                      Adjust Stock
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {!isAdmin && (
@@ -334,14 +488,13 @@ export default function InventoryPage() {
         </Alert>
       )}
 
-      {/* Summary Cards */}
       {inventory && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
           {[
-            { label: 'Total Parts',  value: inventory.length,       bg: '#EFF6FF', color: '#1D4ED8' },
-            { label: 'In Stock',     value: inventory.filter(p => p.quantity > LOW_STOCK_THRESHOLD).length, bg: '#F0FDF4', color: '#166534' },
-            { label: 'Low Stock',    value: lowStockItems.filter(p => p.quantity > 0).length, bg: '#FEF9C3', color: '#854D0E' },
-            { label: 'Out of Stock', value: outOfStock.length,       bg: '#FFF1F2', color: '#9F1239' },
+            { label: 'Catalog Parts', value: inventory.length, bg: '#EFF6FF', color: '#1D4ED8' },
+            { label: 'Total Units', value: totalUnits, bg: '#F0FDF4', color: '#166534' },
+            { label: 'Low Stock (≤3)', value: lowStockCount, bg: '#FEF9C3', color: '#854D0E' },
+            { label: 'Out of Stock', value: outOfStock.length, bg: '#FFF1F2', color: '#9F1239' },
           ].map(({ label, value, bg, color }) => (
             <div key={label} style={{
               background: bg, borderRadius: 10, padding: '14px 16px',
@@ -364,24 +517,24 @@ export default function InventoryPage() {
               </span>
             )}
           </h2>
-          <button className="btn btn-secondary btn-sm" onClick={refetch}>🔄 Refresh</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {isAdmin && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={exportCsv}>
+                📥 Export CSV
+              </button>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={refetch}>🔄 Refresh</button>
+          </div>
         </div>
 
-        {/* Filters */}
-        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--gray-200)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--gray-200)' }}>
           <input
-            type="text" placeholder="🔍 Search parts..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1, minWidth: 180, padding: '7px 12px', borderRadius: 6, border: '1px solid var(--gray-200)', fontSize: 13 }}
+            type="text"
+            placeholder="🔍 Search by part name or code..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', maxWidth: 400, padding: '7px 12px', borderRadius: 6, border: '1px solid var(--gray-200)', fontSize: 13 }}
           />
-          {search && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setSearch('')}
-            >
-              Clear
-            </button>
-          )}
         </div>
 
         <div className="card-body" style={{ padding: 0 }}>
@@ -407,9 +560,13 @@ export default function InventoryPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Item name</th>
-                    <th>Quantity</th>
-                    <th>Stock status</th>
+                    <th>Code</th>
+                    <th>Part name</th>
+                    <th>Category</th>
+                    <th>Qty</th>
+                    {isAdmin && <th>Cost</th>}
+                    {isAdmin && <th>Retail</th>}
+                    <th>Status</th>
                     {isAdmin && <th>Actions</th>}
                   </tr>
                 </thead>
@@ -418,17 +575,30 @@ export default function InventoryPage() {
                     const isLow = p.quantity <= LOW_STOCK_THRESHOLD
                     return (
                       <tr key={p.part_id} style={{ background: p.quantity === 0 ? '#FFF5F5' : isLow ? '#FFFBEB' : 'inherit' }}>
+                        <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{p.part_code}</td>
                         <td style={{ fontWeight: 600 }}>{p.part_name}</td>
+                        <td style={{ fontSize: 12 }}>{p.category}</td>
                         <td style={{ fontSize: 15, fontWeight: 700 }}>{p.quantity}</td>
+                        {isAdmin && <td>₱{parseFloat(p.cost_price).toFixed(2)}</td>}
+                        {isAdmin && <td>₱{parseFloat(p.retail_price).toFixed(2)}</td>}
                         <td><StockBadge quantity={p.quantity} /></td>
                         {isAdmin && (
                           <td>
-                            <button
-                              className="btn btn-primary btn-sm"
-                              onClick={() => setAdjusting(p)}
-                            >
-                              Adjust Stock
-                            </button>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <button className="btn btn-secondary btn-sm" onClick={() => setEditing(p)}>
+                                Edit
+                              </button>
+                              <button className="btn btn-primary btn-sm" onClick={() => setAdjusting(p)}>
+                                Stock
+                              </button>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ color: '#c53030' }}
+                                onClick={() => handleDeletePart(p)}
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -446,6 +616,14 @@ export default function InventoryPage() {
           part={adjusting}
           onSave={handleAdjust}
           onClose={() => setAdjusting(null)}
+        />
+      )}
+
+      {editing && (
+        <EditPartModal
+          part={editing}
+          onSave={handleEditPart}
+          onClose={() => setEditing(null)}
         />
       )}
 

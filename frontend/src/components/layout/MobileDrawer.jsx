@@ -6,7 +6,10 @@ const NAV_ITEMS = [
   { to: '/',          end: true, label: 'Dashboard',  roles: ['admin'] },
   { to: '/tickets',   end: false, label: 'Tickets',    roles: ['admin', 'technician'] },
   { to: '/customers', end: false, label: 'Customers',  roles: ['admin', 'technician'] },
-  { to: '/inventory', end: false, label: 'Inventory',  roles: ['admin'] },
+  { to: '/inventory', end: false, label: 'Inventory',  roles: ['admin', 'technician'] },
+  { to: '/bookings',  end: false, label: 'Home Service', roles: ['admin'] },
+  { to: '/staff',     end: false, label: 'Technicians', roles: ['admin'] },
+  { to: '/profile',   end: false, label: 'My Profile', roles: ['technician'] },
   { to: '/book',      end: false, label: 'New Request', roles: ['admin', 'technician'] },
 ]
 
@@ -38,7 +41,7 @@ export default function MobileDrawer({ isOpen, onClose, onLogout }) {
         </nav>
         {user && (
           <div className="drawer-footer">
-            <span className="sidebar-user-name">👤 {user.username} · {user.role}</span>
+            <span className="sidebar-user-name">👤 {user.full_name || user.username} · {user.role}</span>
             <button className="btn btn-logout btn-sm" onClick={() => { onLogout(); onClose() }}>
               Logout
             </button>

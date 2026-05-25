@@ -246,7 +246,9 @@ async function update(ticketId, fields) {
         diagnostic_notes, repair_notes,
         additional_findings, parseFloat(estimated_cost) || 0.00,
         String(status).trim(),
-        payment_status || 'Unpaid',
+        Object.prototype.hasOwnProperty.call(fields, 'payment_status')
+          ? payment_status
+          : 'Unpaid',
         completed_date || null,
         ticketId,
       ]

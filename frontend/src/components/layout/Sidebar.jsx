@@ -12,7 +12,10 @@ const NAV_ITEMS = [
   { to: '/',          end: true,   label: 'Dashboard', roles: ['admin'] },
   { to: '/tickets',   end: false,  label: 'Tickets',    roles: ['admin', 'technician'] },
   { to: '/customers', end: false,  label: 'Customers',  roles: ['admin', 'technician'] },
-  { to: '/inventory', end: false,  label: 'Inventory',  roles: ['admin'] },
+  { to: '/inventory', end: false,  label: 'Inventory',  roles: ['admin', 'technician'] },
+  { to: '/bookings',  end: false,  label: 'Home Service', roles: ['admin'] },
+  { to: '/staff',     end: false,  label: 'Technicians', roles: ['admin'] },
+  { to: '/profile',   end: false,  label: 'My Profile', roles: ['technician'] },
   { to: '/book',      end: false,  label: 'New Request', highlight: true, roles: ['admin', 'technician'] },
 ];
 
@@ -70,7 +73,7 @@ export default function Sidebar({ onLogout }) {
           <div className="sidebar-user">
             <span className="sidebar-user-avatar">👤</span>
             <div className="sidebar-user-info">
-              <div className="sidebar-user-name" style={{ fontWeight: 600 }}>{user.username}</div>
+              <div className="sidebar-user-name" style={{ fontWeight: 600 }}>{user.full_name || user.username}</div>
               <div className="sidebar-user-role" style={{ 
                 fontSize: '11px', 
                 textTransform: 'uppercase', 

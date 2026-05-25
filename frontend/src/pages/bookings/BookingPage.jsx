@@ -147,7 +147,7 @@ export default function BookingPage() {
     <>
       <div className="page-header">
         <div>
-          <h1>📋 New Repair Request</h1>
+          <h1> New Repair Request</h1>
           <p className="page-subtitle">
             Submit a repair intake for a customer — Walk-In or Home Service.
           </p>
@@ -234,7 +234,7 @@ export default function BookingPage() {
 
             {form.customer_provided_parts && (
               <Alert type="info" style={{ marginBottom: 16 }}>
-                📦 <strong>Customer-provided parts mode on.</strong> Parts used during this repair
+                 <strong>Customer-provided parts mode on.</strong> Parts used during this repair
                 will be marked as customer-supplied and will not deduct from shop stock.
                 Set the labor/service fee below.
               </Alert>
@@ -246,7 +246,7 @@ export default function BookingPage() {
                 {form.customer_provided_parts
                   ? 'Labor / Service Fee (₱)'
                   : 'Quoted Service Fee (₱)'}
-                <span style={{ color: 'var(--gray-400)', fontWeight: 400 }}> (optional)</span>
+                <span style={{ color: 'var(--gray-400)', fontWeight: 400 }}></span>
               </label>
               <input
                 type="number" min="0" step="0.01"
@@ -357,7 +357,7 @@ export default function BookingPage() {
             disabled={submitting}
             style={{ minWidth: 200, padding: '12px 24px' }}
           >
-            {submitting ? '⏳ Submitting...' : '📋 Submit Repair Request'}
+            {submitting ? '⏳ Submitting...' : ' Submit Repair Request'}
           </button>
         </div>
 

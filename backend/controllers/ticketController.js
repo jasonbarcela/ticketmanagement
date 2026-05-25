@@ -3,6 +3,7 @@
 // ============================================================
 const TicketModel = require('../models/ticketModel');
 const BookingModel = require('../models/bookingModel');
+const InvModel = require('../models/inventoryModel');
 const {
   validateTicketPayload,
   validateStatusTransition,
@@ -52,6 +53,9 @@ const TRACK_SELECT = `
     rt.tech_contact,
     rt.tech_assigned_date,
     rt.estimated_cost,
+    rt.repair_notes,
+    rt.diagnostic_notes,
+    rt.additional_findings,
     rt.received_date,
     rt.completed_date,
     rt.payment_status,
@@ -73,9 +77,9 @@ async function fetchTrackLogs(ticketId) {
     `SELECT change_type, notes, logged_at
      FROM repair_logs
      WHERE ticket_id = ?
-       AND change_type IN ('Status Change', 'Customer Update')
+       AND change_type IN ('Status Change', 'Customer Update', 'Tech Note', 'Checklist Update', 'Photo Added')
      ORDER BY logged_at ASC
-     LIMIT 20`,
+     LIMIT 30`,
     [ticketId]
   );
   return logs;
@@ -244,18 +248,35 @@ async function update(req, res, next) {
     }
     if (techAssignedDate === '') techAssignedDate = null;
 
+    const [prevNoteRows] = await pool.execute(
+      'SELECT repair_notes FROM repair_tickets WHERE ticket_id = ?',
+      [id]
+    );
+    const prevRepairNotes = (prevNoteRows[0]?.repair_notes || '').trim();
+    const nextRepairNotes = req.body.repair_notes != null
+      ? String(req.body.repair_notes).trim()
+      : prevRepairNotes;
+
     const fields = {
       ...req.body,
       service_type: serviceType,
       status: nextStatus,
       tech_assigned_date: techAssignedDate,
       completed_date: isCompleting ? (req.body.completed_date || today()) : null,
+      repair_notes: req.body.repair_notes != null ? req.body.repair_notes : prevNoteRows[0]?.repair_notes,
     };
 
     await TicketModel.update(id, fields);
 
     if (isHomeService(serviceType)) {
       await BookingModel.syncBookingFromTicket(id, nextStatus);
+    }
+
+    if (nextRepairNotes && nextRepairNotes !== prevRepairNotes) {
+      await pool.execute(
+        `INSERT INTO repair_logs (ticket_id, change_type, notes, changed_by) VALUES (?, 'Tech Note', ?, ?)`,
+        [id, nextRepairNotes, operator]
+      );
     }
 
     if (currentStatus !== nextStatus) {
@@ -271,7 +292,7 @@ async function update(req, res, next) {
         `INSERT INTO repair_logs (ticket_id, change_type, notes, changed_by) VALUES (?, 'Status Change', ?, ?)`,
         [id, statusLogMessage(nextStatus, { techAssigned: true }), operator]
       );
-    } else {
+    } else if (nextRepairNotes === prevRepairNotes) {
       await pool.execute(
         `INSERT INTO repair_logs (ticket_id, change_type, notes, changed_by) VALUES (?, 'Tech Note', 'Ticket details updated.', ?)`,
         [id, operator]
@@ -328,6 +349,82 @@ async function advanceStatus(req, res, next) {
   } catch (err) { next(err); }
 }
 
+const PUBLIC_PARTS_STATUSES = new Set([
+  'Diagnosing', 'Repairing', 'Ready for Pickup', 'Completed',
+]);
+
+// ── GET /api/tickets/track/parts/:ticketNumber (PUBLIC) ───────
+async function getPublicTicketParts(req, res, next) {
+  try {
+    const ticketNumber = (req.params.ticketNumber || '').trim().toUpperCase();
+    if (!ticketNumber) throw new AppError('Ticket number is required.', 400);
+
+    const [rows] = await pool.execute(
+      'SELECT ticket_id, status FROM repair_tickets WHERE ticket_number = ? LIMIT 1',
+      [ticketNumber]
+    );
+    if (!rows.length) throw new AppError('Ticket not found.', 404);
+
+    const { ticket_id: ticketId, status } = rows[0];
+
+    if (!PUBLIC_PARTS_STATUSES.has(status)) {
+      return res.json({ visible: false, parts: [] });
+    }
+
+    const rawParts = await InvModel.findPartsByTicketId(ticketId);
+    const parts = rawParts.map(p => {
+      const unitPrice = parseFloat(p.unit_price) || 0;
+      const qty = parseInt(p.quantity, 10) || 0;
+      const customerProvided = !!p.customer_provided;
+      return {
+        part_name: p.part_name,
+        quantity: qty,
+        unit_price: unitPrice,
+        subtotal: customerProvided ? 0 : unitPrice * qty,
+        customer_provided: customerProvided,
+      };
+    });
+
+    res.json({ visible: true, parts });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── GET /api/tickets/track/checklist/:ticketNumber (PUBLIC) ───
+async function getPublicChecklist(req, res, next) {
+  try {
+    const ticketNumber = (req.params.ticketNumber || '').trim().toUpperCase();
+    if (!ticketNumber) throw new AppError('Ticket number is required.', 400);
+
+    const [tickets] = await pool.execute(
+      'SELECT ticket_id FROM repair_tickets WHERE ticket_number = ? LIMIT 1',
+      [ticketNumber]
+    );
+    if (!tickets.length) throw new AppError('Ticket not found.', 404);
+
+    const ticketId = tickets[0].ticket_id;
+    const [problems] = await pool.execute(
+      `SELECT label, is_checked, checked_at
+       FROM ticket_checklist
+       WHERE ticket_id = ? AND checklist_type = 'Problem'
+       ORDER BY sort_order ASC, item_id ASC`,
+      [ticketId]
+    );
+    const [repairSteps] = await pool.execute(
+      `SELECT label, is_checked, checked_at
+       FROM ticket_checklist
+       WHERE ticket_id = ? AND checklist_type = 'Repair'
+       ORDER BY sort_order ASC, item_id ASC`,
+      [ticketId]
+    );
+
+    res.json({ problems, repair_steps: repairSteps, items: [...problems, ...repairSteps] });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── DELETE /api/tickets/:id ───────────────────────────────────
 async function remove(req, res, next) {
   try {
@@ -339,5 +436,15 @@ async function remove(req, res, next) {
 }
 
 module.exports = {
-  getAll, getOne, trackLookup, trackByNumber, getLogs, create, update, advanceStatus, remove,
+  getAll,
+  getOne,
+  trackLookup,
+  trackByNumber,
+  getPublicTicketParts,
+  getPublicChecklist,
+  getLogs,
+  create,
+  update,
+  advanceStatus,
+  remove,
 };

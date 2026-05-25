@@ -1,27 +1,33 @@
 -- ============================================================
 -- Code & Locks — Phone Repair Shop Management System
--- database/schema.sql — Complete database structure (no demo data)
+-- database/schema.sql — Full database structure (no demo data)
 --
--- Import: mysql -u root -p < database/schema.sql
--- Then:   mysql -u root -p < database/seed.sql
+-- Fresh install:
+--   mysql -u root -p < database/schema.sql
+--   mysql -u root -p < database/seed.sql
 -- ============================================================
 
 DROP DATABASE IF EXISTS code_and_locks;
-CREATE DATABASE code_and_locks;
+CREATE DATABASE code_and_locks CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE code_and_locks;
 
+-- ─────────────────────────────────────────────────────────────
 -- 1. Staff users (admin + technician)
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE staff_users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     role ENUM('admin', 'technician') NOT NULL,
+    created_by VARCHAR(100) NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- ─────────────────────────────────────────────────────────────
 -- 2. Customers
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE customers (
     customer_id INT AUTO_INCREMENT PRIMARY KEY,
     full_name VARCHAR(100) NOT NULL,
@@ -31,7 +37,9 @@ CREATE TABLE customers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- ─────────────────────────────────────────────────────────────
 -- 3. Devices
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE devices (
     device_id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
@@ -43,7 +51,9 @@ CREATE TABLE devices (
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- 4. Bookings (intake before / with ticket)
+-- ─────────────────────────────────────────────────────────────
+-- 4. Bookings (online / home-service intake)
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE bookings (
     booking_id INT AUTO_INCREMENT PRIMARY KEY,
     customer_name VARCHAR(100) NOT NULL,
@@ -67,8 +77,10 @@ CREATE TABLE bookings (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- 5. Repair tickets — Walk-In + Home Service statuses
---    Ticket number: CL-{YEAR}-{5-digit} e.g. CL-2026-00001
+-- ─────────────────────────────────────────────────────────────
+-- 5. Repair tickets
+--    Ticket number format: CL-{YEAR}-{5-digit}  e.g. CL-2026-00001
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE repair_tickets (
     ticket_id INT AUTO_INCREMENT PRIMARY KEY,
     ticket_number VARCHAR(20) NOT NULL UNIQUE,
@@ -108,7 +120,9 @@ CREATE TABLE repair_tickets (
     FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- 6. Inventory
+-- ─────────────────────────────────────────────────────────────
+-- 6. Parts inventory
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE inventory (
     part_id INT AUTO_INCREMENT PRIMARY KEY,
     part_code VARCHAR(20) NOT NULL UNIQUE,
@@ -120,7 +134,9 @@ CREATE TABLE inventory (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- 7. Ticket parts
+-- ─────────────────────────────────────────────────────────────
+-- 7. Parts used on tickets (unit_price = 0 when customer-provided)
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE ticket_parts (
     ticket_id INT NOT NULL,
     part_id INT NOT NULL,
@@ -131,18 +147,57 @@ CREATE TABLE ticket_parts (
     FOREIGN KEY (part_id) REFERENCES inventory(part_id)
 ) ENGINE=InnoDB;
 
--- 8. Repair activity logs
+-- ─────────────────────────────────────────────────────────────
+-- 8. Repair documentation photos (base64 stored in file_url)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE ticket_photos (
+    photo_id INT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id INT NOT NULL,
+    photo_stage ENUM('Before', 'During', 'After') NOT NULL,
+    file_url LONGTEXT NOT NULL,
+    caption TEXT NULL,
+    uploaded_by VARCHAR(100) NOT NULL DEFAULT 'system',
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticket_id) REFERENCES repair_tickets(ticket_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ─────────────────────────────────────────────────────────────
+-- 9. Repair checklist per ticket
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE ticket_checklist (
+    item_id INT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id INT NOT NULL,
+    label VARCHAR(200) NOT NULL,
+    checklist_type ENUM('Problem', 'Repair') NOT NULL DEFAULT 'Repair',
+    is_checked TINYINT NOT NULL DEFAULT 0,
+    checked_by VARCHAR(100) NULL,
+    checked_at TIMESTAMP NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (ticket_id) REFERENCES repair_tickets(ticket_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ─────────────────────────────────────────────────────────────
+-- 10. Repair activity logs
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE repair_logs (
     log_id INT AUTO_INCREMENT PRIMARY KEY,
     ticket_id INT NOT NULL,
-    change_type ENUM('Status Change', 'Tech Note', 'Customer Update') NOT NULL,
+    change_type ENUM(
+        'Status Change',
+        'Tech Note',
+        'Customer Update',
+        'Photo Added',
+        'Checklist Update'
+    ) NOT NULL,
     notes TEXT NOT NULL,
     changed_by VARCHAR(100) NOT NULL DEFAULT 'system',
     logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (ticket_id) REFERENCES repair_tickets(ticket_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- 9. Payments
+-- ─────────────────────────────────────────────────────────────
+-- 11. Payments
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE payments (
     payment_id INT AUTO_INCREMENT PRIMARY KEY,
     ticket_id INT NOT NULL,

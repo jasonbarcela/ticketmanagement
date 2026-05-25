@@ -23,9 +23,14 @@ export default function LoginPage() {
         username: username.trim().toLowerCase(),
         password,
       })
-      const role = res.data.user.role
-      login({ username: res.data.user.username, role })
-      navigate(role === 'technician' ? '/tickets' : '/')
+      const u = res.data.user
+      login({
+        user_id: u.user_id,
+        username: u.username,
+        role: u.role,
+        full_name: u.full_name || u.username,
+      })
+      navigate(u.role === 'technician' ? '/tickets' : '/')
     } catch (err) {
       setError(err?.response?.data?.error || 'Login failed. Please try again.')
     } finally {

@@ -37,5 +37,5 @@ export function canAssignHomeServiceTech(status) {
 }
 
 export const HOME_SERVICE_DOWNPAYMENT = 500
-export const GCASH_ACCOUNT_NAME = 'Code & Locks'
-export const GCASH_MOBILE = '0917 123 4567'
+export const GCASH_ACCOUNT_NAME = 'Jason Barcela'
+export const GCASH_MOBILE = '0908 496 6657'

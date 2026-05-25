@@ -6,6 +6,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ticketService } from '../../services/ticketService'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../lib/axios'
+import { paymentService } from '../../services/paymentService'
 import ProgressStepper from '../../components/status/ProgressStepper'
 import StatusBadge from '../../components/status/StatusBadge'
 import PaymentBadge from '../../components/status/PaymentBadge'
@@ -140,7 +141,60 @@ export default function ViewTicket() {
   const [error,     setError]     = useState('')
   const [showReceipt, setShowReceipt] = useState(false)
   const [flash,     setFlash]     = useState(null)
+  const [payAmount, setPayAmount] = useState('')
+  const [payMethod, setPayMethod] = useState('Cash')
+  const [paySaving, setPaySaving] = useState(false)
   const isAdmin = user?.role === 'admin'
+
+  const refreshBillingData = async () => {
+    const [ticketData, billingRes] = await Promise.all([
+      ticketService.getOne(id),
+      paymentService.getSummary(id).catch(() => null),
+    ])
+    setTicket(ticketData)
+    if (billingRes) setBilling(billingRes)
+    return { ticketData, billingRes }
+  }
+
+  const handleRecordPayment = async e => {
+    e.preventDefault()
+    const amount = parseFloat(payAmount)
+    if (!amount || amount <= 0) return setFlash({ msg: 'Enter a valid payment amount.', type: 'error' })
+    setPaySaving(true)
+    try {
+      const res = await paymentService.recordPayment({
+        ticket_id: parseInt(id, 10),
+        amount_paid: amount,
+        payment_method: payMethod,
+      })
+      if (res.payment_status) {
+        setBilling(prev => ({
+          ...(prev || {}),
+          payment_status: res.payment_status,
+          remaining_balance: res.remaining_balance,
+          total_paid: res.total_paid,
+          grand_total: res.grand_total,
+          labor_cost: res.labor_cost,
+          parts_cost: res.parts_cost,
+        }))
+        setTicket(prev => prev ? { ...prev, payment_status: res.payment_status } : prev)
+      }
+      await refreshBillingData()
+      setPayAmount('')
+      setFlash({ msg: `Payment of ₱${amount.toFixed(2)} recorded. Status: ${res.payment_status}.`, type: 'success' })
+    } catch (err) {
+      setFlash({ msg: err?.response?.data?.error || 'Payment failed.', type: 'error' })
+    } finally {
+      setPaySaving(false)
+    }
+  }
+
+  const loadLogs = async () => {
+    try {
+      const logData = await api.get(`/tickets/${id}/logs`).then(r => r.data).catch(() => [])
+      setLogs(logData)
+    } catch (_) {}
+  }
 
   const loadData = async () => {
     try {
@@ -150,9 +204,8 @@ export default function ViewTicket() {
       ])
       setTicket(ticketData)
       setLogs(logData)
-
       api.get(`/inventory/ticket/${id}`).then(r => setParts(r.data || [])).catch(() => {})
-      api.get(`/payments/summary/${id}`).then(r => setBilling(r.data)).catch(() => {})
+      await refreshBillingData()
     } catch (err) {
       setError(err?.response?.data?.error || 'Failed to load ticket.')
     } finally {
@@ -160,7 +213,20 @@ export default function ViewTicket() {
     }
   }
 
-  useEffect(() => { setLoading(true); loadData() }, [id])
+  useEffect(() => {
+    setLoading(true)
+    loadData()
+  }, [id])
+
+  useEffect(() => {
+    const billingTimer = setInterval(refreshBillingData, 30000)
+    return () => clearInterval(billingTimer)
+  }, [id])
+
+  useEffect(() => {
+    const logTimer = setInterval(loadLogs, 15000)
+    return () => clearInterval(logTimer)
+  }, [id])
 
   if (loading) return <Spinner />
   if (error)   return <Alert type="error">{error}</Alert>
@@ -325,13 +391,49 @@ export default function ViewTicket() {
                 <Row label="Estimated Cost" value={`₱${parseFloat(ticket.estimated_cost || 0).toFixed(2)}`} />
               )}
               <PaymentBadge status={billing ? billing.payment_status : ticket.payment_status} />
+
+              {billing && billing.remaining_balance > 0 && (
+                <form onSubmit={handleRecordPayment} style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--gray-200)' }}>
+                  <h3 style={{ fontSize: 14, marginBottom: 12 }}>Record Payment</h3>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <div className="form-group" style={{ margin: 0, minWidth: 120 }}>
+                      <label>Amount (₱)</label>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={payAmount}
+                        onChange={e => setPayAmount(e.target.value)}
+                        placeholder={billing.remaining_balance.toFixed(2)}
+                      />
+                    </div>
+                    <div className="form-group" style={{ margin: 0, minWidth: 140 }}>
+                      <label>Method</label>
+                      <select value={payMethod} onChange={e => setPayMethod(e.target.value)}>
+                        <option value="Cash">Cash</option>
+                        <option value="GCash">GCash</option>
+                        <option value="PayMaya">PayMaya</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                      </select>
+                    </div>
+                    <button type="submit" className="btn btn-primary" disabled={paySaving}>
+                      {paySaving ? 'Recording…' : 'Record Payment'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}
 
         {/* Repair Timeline (formerly Activity Log) */}
         <div className="card" style={{ gridColumn: '1 / -1' }}>
-          <div className="card-header"><h2>Activity timeline</h2></div>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>Repair Activity</h2>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={loadLogs}>
+              🔄 Refresh
+            </button>
+          </div>
           <div className="card-body" style={{ padding: 0 }}>
             {logs.length === 0 ? (
               <div style={{ padding: 32, textAlign: 'center', color: 'var(--gray-400)', fontStyle: 'italic' }}>

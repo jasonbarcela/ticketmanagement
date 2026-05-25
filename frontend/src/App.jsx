@@ -26,6 +26,9 @@ import EditTicket   from './pages/tickets/EditTicket'   // ← Updated (parts ma
 import CustomersPage from './pages/customers/CustomersPage'
 import InventoryPage from './pages/inventory/InventoryPage'
 import BookingPage  from './pages/bookings/BookingPage'
+import BookingsListPage from './pages/bookings/BookingsListPage'
+import ManageTechniciansPage from './pages/staff/ManageTechniciansPage'
+import TechnicianProfilePage from './pages/staff/TechnicianProfilePage'
 
 // ── Authenticated Shell Layout ────────────────────────────────
 function AppLayout() {
@@ -55,6 +58,9 @@ function AppLayout() {
     '/customers':  'Customers',
     '/inventory':  'Inventory',
     '/book':       'New Request',
+    '/bookings':   'Home Service',
+    '/staff':      'Technicians',
+    '/profile':    'My Profile',
   }
   const path = location.pathname
   const pageTitle = titleMap[path]
@@ -93,13 +99,16 @@ function AppRoutes() {
       {/* Protected shell */}
       <Route element={<AppLayout />}>
         <Route path="/"                  element={<ProtectedRoute allowedRoles={['admin']}><Dashboard /></ProtectedRoute>} />
-        <Route path="/inventory"         element={<ProtectedRoute allowedRoles={['admin']}><InventoryPage /></ProtectedRoute>} />
+        <Route path="/inventory"         element={<ProtectedRoute allowedRoles={['admin', 'technician']}><InventoryPage /></ProtectedRoute>} />
+        <Route path="/bookings"          element={<ProtectedRoute allowedRoles={['admin']}><BookingsListPage /></ProtectedRoute>} />
         <Route path="/tickets/edit/:id"  element={<ProtectedRoute allowedRoles={['admin','technician']}><EditTicket /></ProtectedRoute>} />
         <Route path="/tickets"           element={<ProtectedRoute allowedRoles={['admin','technician']}><TicketsPage /></ProtectedRoute>} />
         <Route path="/tickets/new"       element={<ProtectedRoute allowedRoles={['admin','technician']}><NewTicket /></ProtectedRoute>} />
         <Route path="/tickets/view/:id"  element={<ProtectedRoute allowedRoles={['admin','technician']}><ViewTicket /></ProtectedRoute>} />
         <Route path="/customers"         element={<ProtectedRoute allowedRoles={['admin','technician']}><CustomersPage /></ProtectedRoute>} />
         <Route path="/book"              element={<ProtectedRoute allowedRoles={['admin','technician']}><BookingPage /></ProtectedRoute>} />
+        <Route path="/staff"             element={<ProtectedRoute allowedRoles={['admin']}><ManageTechniciansPage /></ProtectedRoute>} />
+        <Route path="/profile"          element={<ProtectedRoute allowedRoles={['technician']}><TechnicianProfilePage /></ProtectedRoute>} />
       </Route>
 
       {/* Redirect root to landing page for unauthenticated, dashboard for authenticated */}

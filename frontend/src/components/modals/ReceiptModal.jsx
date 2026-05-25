@@ -7,19 +7,25 @@ const php = (v) => `₱${parseFloat(v || 0).toFixed(2)}`
 export default function ReceiptModal({ ticketId, onClose }) {
   const [ticket,  setTicket]  = useState(null)
   const [billing, setBilling] = useState(null)
+  const [parts,   setParts]   = useState([])
+  const [checklist, setChecklist] = useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState('')
 
   useEffect(() => {
     async function load() {
       try {
-        const [tRes, bRes] = await Promise.allSettled([
+        const [tRes, bRes, pRes, cRes] = await Promise.allSettled([
           api.get(`/tickets/${ticketId}`),
           api.get(`/payments/summary/${ticketId}`),
+          api.get(`/inventory/ticket/${ticketId}`),
+          api.get(`/tickets/${ticketId}/checklist`),
         ])
         if (tRes.status === 'fulfilled') setTicket(tRes.value.data)
         else setError('Could not load ticket data.')
         if (bRes.status === 'fulfilled') setBilling(bRes.value.data)
+        if (pRes.status === 'fulfilled') setParts(pRes.value.data || [])
+        if (cRes.status === 'fulfilled') setChecklist(cRes.value.data || [])
       } catch {
         setError('Failed to load repair ticket.')
       } finally {
@@ -37,6 +43,8 @@ export default function ReceiptModal({ ticketId, onClose }) {
   const grandTotal  = parseFloat(billing?.grand_total ?? serviceFee + partsCost)
   const remaining   = parseFloat(billing?.remaining_balance ?? Math.max(0, grandTotal - amountPaid))
   const expectedDp  = parseFloat(billing?.expected_downpayment ?? 0)
+  const problemItems = checklist.filter(i => (i.checklist_type || 'Repair') === 'Problem')
+  const repairSteps = checklist.filter(i => (i.checklist_type || 'Repair') === 'Repair')
   const isHomeService = ticket?.service_type === 'Home Service'
   const downpaymentPaid = isHomeService && amountPaid > 0
     ? Math.min(amountPaid, expectedDp || amountPaid)
@@ -106,6 +114,64 @@ export default function ReceiptModal({ ticketId, onClose }) {
                 {billing?.downpayment_reference && (
                   <TicketRow label="GCASH REF" value={billing.downpayment_reference} />
                 )}
+
+                {problemItems.length > 0 && (
+                  <>
+                    <div style={{ borderTop: '1px dashed #cbd5e1', margin: '10px 0' }} />
+                    <div style={{ fontWeight: 700, fontSize: 10, marginBottom: 6 }}>DEVICE ISSUES</div>
+                    {problemItems.map(item => (
+                      <div key={item.item_id} style={{ display: 'flex', gap: 6, marginBottom: 3, fontSize: 10 }}>
+                        <span>{item.is_checked ? '☑' : '☐'}</span>
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {repairSteps.length > 0 && (
+                  <>
+                    <div style={{ borderTop: '1px dashed #cbd5e1', margin: '10px 0' }} />
+                    <div style={{ fontWeight: 700, fontSize: 10, marginBottom: 6 }}>REPAIR STEPS</div>
+                    {repairSteps.map((item, i) => (
+                      <div key={item.item_id || i} style={{ marginBottom: 3, fontSize: 10 }}>
+                        {i + 1}. {item.label}
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {parts.length > 0 && (
+                  <>
+                    <div style={{ borderTop: '1px dashed #cbd5e1', margin: '10px 0' }} />
+                    <div style={{ fontWeight: 700, fontSize: 10, marginBottom: 6 }}>PARTS &amp; MATERIALS</div>
+                    {parts.map((p, i) => {
+                      const isCustomer = parseFloat(p.unit_price) === 0
+                      const lineTotal = p.quantity * parseFloat(p.unit_price || 0)
+                      return (
+                        <div key={i} style={{ marginBottom: 4, fontSize: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>
+                              {p.part_name}
+                              {isCustomer ? ' (Customer Part)' : ''} ×{p.quantity}
+                            </span>
+                            <span>{php(isCustomer ? 0 : lineTotal)}</span>
+                          </div>
+                          {!isCustomer && (
+                            <div style={{ color: '#94a3b8', fontSize: 9 }}>
+                              @ {php(p.unit_price)} each
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {parts.some(p => parseFloat(p.unit_price) === 0) && (
+                      <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 6, fontStyle: 'italic' }}>
+                        * Customer-supplied part(s) — no charge for materials.
+                      </div>
+                    )}
+                  </>
+                )}
+
                 <div style={{ borderTop: '1px dashed #cbd5e1', margin: '10px 0' }} />
                 <TicketRow label="SERVICE FEE" value={php(serviceFee)} />
                 {partsCost > 0 && <TicketRow label="PARTS" value={php(partsCost)} />}

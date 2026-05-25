@@ -113,7 +113,7 @@ export default function NewTicket() {
 
         {/* ── Service Type ──────────────────────────────────── */}
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><h2>📋 Service Type</h2></div>
+          <div className="card-header"><h2> Service Type</h2></div>
           <div className="card-body">
             <div className="form-group">
               <label>Service Type <span className="req">*</span></label>
@@ -191,10 +191,10 @@ export default function NewTicket() {
 
         {/* ── Part Allocation ───────────────────────────────── */}
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><h2>📦 Part Allocation</h2></div>
+          <div className="card-header"><h2> Part Allocation</h2></div>
           <div className="card-body">
             <div className="form-group">
-              <label>Link Spare Part (optional)</label>
+              <label>Link Spare Part </label>
               <select value={form.part_id} onChange={handlePartSelect}>
                 <option value="">— No part allocated —</option>
                 {inventory.map(p => (

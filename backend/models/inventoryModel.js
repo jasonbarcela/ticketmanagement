@@ -12,7 +12,8 @@ const pool = require('../config/db');
  */
 async function findAll() {
   const [rows] = await pool.execute(
-    'SELECT * FROM inventory ORDER BY category ASC, part_name ASC'
+    `SELECT *, IF(quantity <= 3, 1, 0) AS is_low_stock
+     FROM inventory ORDER BY category ASC, part_name ASC`
   );
   return rows;
 }
@@ -76,7 +77,9 @@ async function addPart({ part_code, part_name, category, quantity, cost_price, r
  */
 async function findPartsByTicketId(ticketId) {
   const [rows] = await pool.execute(
-    `SELECT tp.*, i.part_name, i.part_code, i.category
+    `SELECT tp.ticket_id, tp.part_id, tp.quantity, tp.unit_price,
+            i.part_name, i.part_code, i.category,
+            IF(tp.unit_price = 0, 1, 0) AS customer_provided
      FROM ticket_parts tp
      JOIN inventory i ON tp.part_id = i.part_id
      WHERE tp.ticket_id = ?`,
@@ -113,13 +116,21 @@ async function attachPartToTicket(ticketId, partId, quantityUsed, customerProvid
       throw new Error(`Insufficient stock. Available: ${part.quantity}`);
     }
 
-    // 3. Record part on ticket
-    //    unit_price = 0 when customer provides the part (labor fee covers the job)
+    const [existing] = await conn.execute(
+      'SELECT 1 FROM ticket_parts WHERE ticket_id = ? AND part_id = ?',
+      [ticketId, partId]
+    );
+    if (existing.length) {
+      throw new Error(
+        'Part is already attached to this ticket. Remove it first before re-attaching with the correct quantity.'
+      );
+    }
+
+    // Record part on ticket — unit_price = 0 when customer provides the part
     const unitPrice = customerProvided ? 0.00 : part.retail_price;
     await conn.execute(
       `INSERT INTO ticket_parts (ticket_id, part_id, quantity, unit_price)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)`,
+       VALUES (?, ?, ?, ?)`,
       [ticketId, partId, quantityUsed, unitPrice]
     );
 
@@ -208,6 +219,68 @@ async function generateNextPartCode() {
   return `PRT-${String(nextNum).padStart(3, '0')}`;
 }
 
+/**
+ * Update editable catalog fields (never updates part_code).
+ */
+async function updatePartDetails(partId, { part_name, category, cost_price, retail_price }) {
+  const fields = [];
+  const params = [];
+
+  if (part_name != null) {
+    fields.push('part_name = ?');
+    params.push(String(part_name).trim());
+  }
+  if (category != null) {
+    fields.push('category = ?');
+    params.push(String(category).trim());
+  }
+  if (cost_price != null) {
+    fields.push('cost_price = ?');
+    params.push(parseFloat(cost_price) || 0);
+  }
+  if (retail_price != null) {
+    fields.push('retail_price = ?');
+    params.push(parseFloat(retail_price) || 0);
+  }
+
+  if (!fields.length) return;
+
+  params.push(partId);
+  await pool.execute(
+    `UPDATE inventory SET ${fields.join(', ')} WHERE part_id = ?`,
+    params
+  );
+}
+
+/**
+ * True if part is on an active (non-completed, non-cancelled) ticket.
+ */
+async function isPartInUse(partId) {
+  const [rows] = await pool.execute(
+    `SELECT 1
+     FROM ticket_parts tp
+     JOIN repair_tickets rt ON tp.ticket_id = rt.ticket_id
+     WHERE tp.part_id = ?
+       AND rt.status NOT IN ('Completed', 'Cancelled')
+     LIMIT 1`,
+    [partId]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Delete a part from inventory if not attached to active tickets.
+ */
+async function deletePart(partId) {
+  const inUse = await isPartInUse(partId);
+  if (inUse) {
+    throw new Error(
+      'Cannot delete part: it is attached to one or more active repair tickets.'
+    );
+  }
+  await pool.execute('DELETE FROM inventory WHERE part_id = ?', [partId]);
+}
+
 module.exports = {
   findAll,
   findByPartCode,
@@ -219,4 +292,7 @@ module.exports = {
   removePartFromTicket,
   findLowStock,
   generateNextPartCode,
+  updatePartDetails,
+  isPartInUse,
+  deletePart,
 };

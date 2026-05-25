@@ -66,7 +66,11 @@ async function attachPart(req, res, next) {
         : 'Part attached and stock deducted from inventory.',
     });
   } catch (err) {
-    if (err.message.includes('Insufficient') || err.message.includes('not found')) {
+    if (
+      err.message.includes('Insufficient') ||
+      err.message.includes('not found') ||
+      err.message.includes('already attached')
+    ) {
       return next(new AppError(err.message, 400));
     }
     next(err);

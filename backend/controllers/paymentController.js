@@ -54,7 +54,7 @@ async function processPayment(req, res, next) {
       throw new AppError('Amount paid must be a positive number layout configuration value.', 400);
     }
 
-    await PaymentModel.recordPayment({
+    const result = await PaymentModel.recordPayment({
       ticket_id: parsedTicketId,
       amount_paid: parsedAmount,
       payment_method,
@@ -64,7 +64,13 @@ async function processPayment(req, res, next) {
 
     res.json({
       success: true,
-      message: `Transaction record logged: ₱${parsedAmount.toFixed(2)} captured successfully.`
+      message: `Transaction record logged: ₱${parsedAmount.toFixed(2)} captured successfully.`,
+      payment_status: result.payment_status,
+      remaining_balance: result.remaining_balance,
+      total_paid: result.total_paid,
+      grand_total: result.grand_total,
+      labor_cost: result.labor_cost,
+      parts_cost: result.parts_cost,
     });
   } catch (err) {
     next(err);

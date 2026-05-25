@@ -10,4 +10,10 @@ export const inventoryService = {
 
   addPart:      (payload) =>
     api.post('/inventory/add', payload).then(r => r.data),
+
+  editPart:     (partId, payload) =>
+    api.patch(`/inventory/${partId}`, payload).then(r => r.data),
+
+  deletePart:   (partId) =>
+    api.delete(`/inventory/${partId}`).then(r => r.data),
 }

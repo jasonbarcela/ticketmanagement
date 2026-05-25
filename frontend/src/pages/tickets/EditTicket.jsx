@@ -21,6 +21,7 @@ import HomeServiceScheduleFields  from '../../components/forms/HomeServiceSchedu
 import Alert                      from '../../components/ui/Alert'
 import Spinner                    from '../../components/ui/Spinner'
 import api                        from '../../lib/axios'
+import { compressImageFile }      from '../../lib/compressImage'
 
 
 // ── Log helpers (same as before) ─────────────────────────────
@@ -69,6 +70,298 @@ function entryStyle(label) {
     case 'Info Update':       return { icon: '👤', bg: '#F0FDF4', color: '#065F46' }
     default:                  return { icon: '📝', bg: '#F9FAFB', color: '#374151' }
   }
+}
+
+const DEFAULT_CHECKLIST = [
+  'Inspect device for physical damage',
+  'Back up customer data if possible',
+  'Diagnose root cause of problem',
+  'Source required parts',
+  'Perform repair',
+  'Test device functionality',
+  'Clean device exterior',
+  'Final quality check',
+]
+
+const PHOTO_STAGES = ['Before', 'During', 'After']
+
+function useChecklistByType(ticketId, checklistType) {
+  const [items, setItems] = useState([])
+  const load = async () => {
+    try {
+      const res = await api.get(`/tickets/${ticketId}/checklist`)
+      const all = res.data || []
+      setItems(all.filter(i => (i.checklist_type || 'Repair') === checklistType))
+    } catch (_) {}
+  }
+  useEffect(() => { load() }, [ticketId])
+  return { items, reload: load }
+}
+
+function ProblemChecklist({ ticketId, isAdmin }) {
+  const [newLabel, setNewLabel] = useState('')
+  const { items, reload } = useChecklistByType(ticketId, 'Problem')
+
+  const confirmed = items.filter(i => i.is_checked).length
+  const pct = items.length ? Math.round((confirmed / items.length) * 100) : 0
+
+  const toggleItem = async (item) => {
+    await api.patch(`/tickets/${ticketId}/checklist/${item.item_id}`, {
+      is_checked: !item.is_checked,
+    })
+    reload()
+  }
+
+  const addItem = async (label) => {
+    const trimmed = (label || '').trim()
+    if (!trimmed) return
+    await api.post(`/tickets/${ticketId}/checklist`, { label: trimmed, checklist_type: 'Problem' })
+    setNewLabel('')
+    reload()
+  }
+
+  const deleteItem = async (itemId) => {
+    await api.delete(`/tickets/${ticketId}/checklist/${itemId}`)
+    reload()
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card-header"><h2>📋 Device Issues (Customer Reported)</h2></div>
+      <div className="card-body">
+        <p className="hint" style={{ marginBottom: 12 }}>
+          List each problem the customer described. Check off an issue once you have confirmed it on the device.
+        </p>
+        {items.length === 0 ? (
+          <p style={{ color: 'var(--gray-500)', fontSize: 13, fontStyle: 'italic' }}>No reported issues listed yet.</p>
+        ) : (
+          <>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px' }}>
+              {items.map(item => (
+                <li
+                  key={item.item_id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 0', borderBottom: '1px solid var(--gray-100)',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!item.is_checked}
+                    onChange={() => toggleItem(item)}
+                    aria-label={`Confirm issue: ${item.label}`}
+                  />
+                  <span style={{
+                    flex: 1,
+                    textDecoration: item.is_checked ? 'line-through' : 'none',
+                    color: item.is_checked ? 'var(--gray-500)' : 'inherit',
+                  }}>
+                    {item.label}
+                  </span>
+                  {isAdmin && (
+                    <button type="button" className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 11 }}
+                      onClick={() => deleteItem(item.item_id)}>✕</button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ height: 8, background: 'var(--gray-200)', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s' }} />
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 6 }}>
+                {confirmed} of {items.length} issues confirmed ({pct}%)
+              </p>
+            </div>
+          </>
+        )}
+        <input
+          type="text"
+          placeholder="Add a reported problem and press Enter..."
+          value={newLabel}
+          onChange={e => setNewLabel(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(newLabel) } }}
+          style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--gray-200)' }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function RepairStepsChecklist({ ticketId, isAdmin }) {
+  const [newLabel, setNewLabel] = useState('')
+  const [loadingDefault, setLoadingDefault] = useState(false)
+  const { items, reload } = useChecklistByType(ticketId, 'Repair')
+
+  const addItem = async (label) => {
+    const trimmed = (label || '').trim()
+    if (!trimmed) return
+    await api.post(`/tickets/${ticketId}/checklist`, { label: trimmed, checklist_type: 'Repair' })
+    setNewLabel('')
+    reload()
+  }
+
+  const loadDefault = async () => {
+    setLoadingDefault(true)
+    try {
+      for (const label of DEFAULT_CHECKLIST) {
+        await api.post(`/tickets/${ticketId}/checklist`, { label, checklist_type: 'Repair' })
+      }
+      reload()
+    } finally {
+      setLoadingDefault(false)
+    }
+  }
+
+  const deleteItem = async (itemId) => {
+    await api.delete(`/tickets/${ticketId}/checklist/${itemId}`)
+    reload()
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card-header"><h2>🔧 Repair Steps (Internal)</h2></div>
+      <div className="card-body">
+        <p className="hint" style={{ marginBottom: 12 }}>
+          Optional reference list for the technician — not shown as checkboxes to the customer.
+        </p>
+        {items.length === 0 ? (
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <p style={{ color: 'var(--gray-500)', fontSize: 13, marginBottom: 12 }}>No repair steps yet.</p>
+            <button type="button" className="btn btn-secondary" onClick={loadDefault} disabled={loadingDefault}>
+              {loadingDefault ? '⏳ Loading...' : 'Load Default Steps'}
+            </button>
+          </div>
+        ) : (
+          <ol style={{ margin: '0 0 12px', paddingLeft: 22 }}>
+            {items.map((item, idx) => (
+              <li
+                key={item.item_id}
+                style={{
+                  marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 8,
+                  alignItems: 'flex-start',
+                }}
+              >
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {isAdmin && (
+                  <button type="button" className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 11 }}
+                    onClick={() => deleteItem(item.item_id)}>✕</button>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+        <input
+          type="text"
+          placeholder="Add a repair step and press Enter..."
+          value={newLabel}
+          onChange={e => setNewLabel(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(newLabel) } }}
+          style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--gray-200)' }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function DevicePhotos({ ticketId }) {
+  const [photos, setPhotos] = useState([])
+
+  const loadPhotos = async () => {
+    try {
+      const res = await api.get(`/tickets/${ticketId}/photos`)
+      setPhotos(res.data || [])
+    } catch (_) {}
+  }
+
+  useEffect(() => { loadPhotos() }, [ticketId])
+
+  const byStage = (stage) => photos.filter(p => p.photo_stage === stage)
+
+  const handleUpload = (stage) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file.')
+        return
+      }
+      const caption = window.prompt('Optional caption for this photo:') || ''
+      try {
+        const compressed = await compressImageFile(file)
+        await api.post(`/tickets/${ticketId}/photos`, {
+          photo_stage: stage,
+          file_url: compressed,
+          caption: caption.trim() || null,
+        })
+        loadPhotos()
+      } catch (err) {
+        alert(err?.response?.data?.error || err?.message || 'Failed to upload photo.')
+      }
+    }
+    input.click()
+  }
+
+  const handleDelete = async (photoId) => {
+    if (!confirm('Delete this photo?')) return
+    await api.delete(`/tickets/${ticketId}/photos/${photoId}`)
+    loadPhotos()
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card-header"><h2>📷 Device Photos</h2></div>
+      <div className="card-body">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          {PHOTO_STAGES.map(stage => {
+            const stagePhotos = byStage(stage)
+            return (
+              <div key={stage}>
+                <h3 style={{ fontSize: 13, marginBottom: 10, color: 'var(--gray-600)' }}>{stage}</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {stagePhotos.map(p => (
+                    <div key={p.photo_id} style={{ position: 'relative' }}>
+                      <img
+                        src={p.file_url}
+                        alt={p.caption || stage}
+                        style={{
+                          width: '100%', height: 100, objectFit: 'cover', borderRadius: 6,
+                          cursor: 'pointer', border: '1px solid var(--gray-200)',
+                        }}
+                        onClick={() => window.open(p.file_url, '_blank')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(p.photo_id)}
+                        style={{
+                          position: 'absolute', top: 4, right: 4,
+                          background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none',
+                          borderRadius: 4, width: 22, height: 22, cursor: 'pointer', fontSize: 12,
+                        }}
+                      >
+                        ✕
+                      </button>
+                      {p.caption && (
+                        <p style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>{p.caption}</p>
+                      )}
+                    </div>
+                  ))}
+                  {stagePhotos.length < 3 && (
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleUpload(stage)}>
+                      + Upload
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Parts Manager Sub-Component ───────────────────────────────
@@ -278,7 +571,8 @@ function PartsManager({ ticketId, inventory }) {
 export default function EditTicket() {
   const { id }   = useParams()
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
+  const isTechnician = user?.role === 'technician'
 
   const [form,      setForm]      = useState(null)
   const [inventory, setInventory] = useState([])
@@ -297,6 +591,10 @@ export default function EditTicket() {
       const isHome = ticket.service_type === 'Home Service'
       const rawStatus = (ticket.status && String(ticket.status).trim()) || 'Pending'
       const status = isHome ? normalizeHomeServiceStatus(rawStatus) : rawStatus
+      let assignedTech = ticket.assigned_tech || ''
+      if (isTechnician && !assignedTech.trim()) {
+        assignedTech = user?.full_name || user?.username || ''
+      }
       setForm({
         customer_name:       ticket.customer_name || '',
         contact_number:      ticket.contact_number || '',
@@ -317,7 +615,7 @@ export default function EditTicket() {
         diagnostic_notes:    ticket.diagnostic_notes || '',
         repair_notes:        ticket.repair_notes || '',
         additional_findings: ticket.additional_findings || '',
-        assigned_tech:       ticket.assigned_tech || '',
+        assigned_tech:       assignedTech,
         tech_contact:        ticket.tech_contact || '',
         tech_assigned_date:  ticket.tech_assigned_date
           ? String(ticket.tech_assigned_date).slice(0, 10)
@@ -335,6 +633,18 @@ export default function EditTicket() {
     }).catch(err => {
       setError(err?.response?.data?.error || 'Failed to load ticket.')
     }).finally(() => setLoading(false))
+  }, [id])
+
+  const loadLogs = async () => {
+    try {
+      const logData = await api.get(`/tickets/${id}/logs`).then(r => r.data).catch(() => [])
+      setLogs(logData)
+    } catch (_) {}
+  }
+
+  useEffect(() => {
+    const logTimer = setInterval(loadLogs, 15000)
+    return () => clearInterval(logTimer)
   }, [id])
 
   const set = (field, val) => setForm(f => ({ ...f, [field]: val }))
@@ -380,7 +690,7 @@ export default function EditTicket() {
         additional_findings: form.additional_findings || '',
         estimated_cost: parseFloat(form.estimated_cost) || 0,
         status,
-        payment_status: form.payment_status || 'Unpaid',
+        payment_status: form.payment_status,
         completed_date: status === 'Completed'
           ? (form.completed_date || new Date().toISOString().slice(0, 10))
           : null,
@@ -504,9 +814,14 @@ export default function EditTicket() {
             <div className="form-grid">
               <div className="form-group">
                 <label>{isHomeService ? 'Technician Name' : 'Assigned Technician'}</label>
-                <input type="text" value={form.assigned_tech}
+                <input
+                  type="text"
+                  value={form.assigned_tech}
+                  readOnly={isTechnician}
                   disabled={isHomeService && !techFieldsEnabled}
-                  onChange={e => set('assigned_tech', e.target.value)} />
+                  onChange={e => set('assigned_tech', e.target.value)}
+                  style={isTechnician ? { background: 'var(--gray-100)', cursor: 'not-allowed' } : undefined}
+                />
               </div>
               {isHomeService && (
                 <>
@@ -620,11 +935,19 @@ export default function EditTicket() {
         </div>
       </form>
 
-      {/* ── PARTS MANAGER (outside form so its own submit/buttons don't conflict) ── */}
       {!isHomeService && <PartsManager ticketId={id} inventory={inventory} />}
 
+      <ProblemChecklist ticketId={id} isAdmin={isAdmin} />
+      <RepairStepsChecklist ticketId={id} isAdmin={isAdmin} />
+      <DevicePhotos ticketId={id} />
+
       <div className="card" style={{ marginBottom: 32 }}>
-        <div className="card-header"><h2>{isHomeService ? 'Activity Logs' : 'Repair Timeline'}</h2></div>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>{isHomeService ? 'Repair Activity' : 'Repair Activity'}</h2>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={loadLogs}>
+            🔄 Refresh
+          </button>
+        </div>
         <div className="card-body" style={{ padding: 0 }}>
           {logs.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: 'var(--gray-400)', fontStyle: 'italic' }}>

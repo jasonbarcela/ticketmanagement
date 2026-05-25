@@ -18,6 +18,7 @@ const customerRoutes  = require('./routes/customers');
 const inventoryRoutes = require('./routes/inventory');
 const statsRoutes     = require('./routes/stats');
 const paymentRoutes   = require('./routes/payments');
+const staffRoutes     = require('./routes/staff');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -30,8 +31,9 @@ app.use(cors({
   credentials:  true,
 }));
 
-// ── Body Parser ───────────────────────────────────────────────
-app.use(express.json());
+// ── Body Parser (large limit for base64 repair photos) ────────
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // ── Routes ────────────────────────────────────────────────────
 app.use('/api/auth',      authRoutes);
@@ -41,6 +43,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/stats',     statsRoutes);
 app.use('/api/payments',  paymentRoutes);
+app.use('/api/staff',     staffRoutes);
 
 // ── Health Check ──────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {

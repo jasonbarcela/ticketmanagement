@@ -114,8 +114,24 @@ async function recordPayment({ ticket_id, amount_paid, payment_method, notes, re
       [nextStatus, ticket_id]
     );
 
+    const operator = recorded_by || 'system';
+    const logNote = `Payment of ₱${parseFloat(amount_paid).toFixed(2)} recorded via ${payment_method || 'Cash'}. Ticket payment status is now ${nextStatus}.`;
+    await conn.execute(
+      `INSERT INTO repair_logs (ticket_id, change_type, notes, changed_by)
+       VALUES (?, 'Status Change', ?, ?)`,
+      [ticket_id, logNote, operator]
+    );
+
     await conn.commit();
-    return true;
+
+    const summary = await getBillingSummary(ticket_id);
+    return {
+      payment_status: nextStatus,
+      remaining_balance: Math.max(0, totalCost - paid),
+      total_paid: paid,
+      grand_total: totalCost,
+      ...summary,
+    };
   } catch (err) {
     await conn.rollback();
     throw err;
