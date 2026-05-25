@@ -1,4 +1,3 @@
-// src/lib/axios.js — shared API client (Vite proxy → backend)
 import axios from 'axios'
 
 const api = axios.create({

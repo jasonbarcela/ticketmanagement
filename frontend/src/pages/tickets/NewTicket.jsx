@@ -4,6 +4,9 @@
 // Full field set: customer, device, diagnostic, part allocation.
 // Split-routing: service_type drives initial status (backend).
 // On success, navigates to the Tickets list with a flash message.
+// Problem Description uses a checkbox issue picker (same as
+// PublicBookingPage) — selected items are joined into problem_desc.
+// "Other issue" reveals a description textarea when checked.
 // ============================================================
 import { useState, useEffect }   from 'react'
 import { useNavigate }           from 'react-router-dom'
@@ -13,10 +16,27 @@ import DeviceFields              from '../../components/forms/DeviceFields'
 import ServiceTypeSelector       from '../../components/forms/ServiceTypeSelector'
 import Alert                     from '../../components/ui/Alert'
 
+const DEVICE_ISSUES = [
+  'Screen cracked / broken',
+  'Battery draining fast',
+  'Won\'t turn on / no power',
+  'Charging port not working',
+  'Water damage',
+  'Speaker / microphone issue',
+  'Camera not working',
+  'Software / virus problem',
+  'Overheating',
+  'Slow performance',
+  'Wi-Fi / Bluetooth not connecting',
+  'Other issue',
+]
+
 const BLANK = {
   customer_name: '', contact_number: '',
   device_type: '', device_brand: '', imei: '', passcode: '',
-  problem_desc: '', service_type: 'Walk-In', address: '',
+  selectedIssues: [],
+  otherDesc: '',
+  service_type: 'Walk-In', address: '',
   preferred_schedule: '', diagnostic_notes: '', assigned_tech: '',
   estimated_cost: '', part_id: '', part_code: '', payment_status: 'Unpaid',
 }
@@ -34,6 +54,20 @@ export default function NewTicket() {
 
   const set = (field, val) => setForm(f => ({ ...f, [field]: val }))
 
+  const toggleIssue = (issue) => {
+    setForm(f => {
+      const already = f.selectedIssues.includes(issue)
+      return {
+        ...f,
+        selectedIssues: already
+          ? f.selectedIssues.filter(i => i !== issue)
+          : [...f.selectedIssues, issue],
+        // clear the extra description when Other is unchecked
+        otherDesc: already && issue === 'Other issue' ? '' : f.otherDesc,
+      }
+    })
+  }
+
   const handlePartSelect = e => {
     const partId = e.target.value
     const part   = inventory.find(p => String(p.part_id) === String(partId))
@@ -47,15 +81,23 @@ export default function NewTicket() {
   const handleSubmit = async e => {
     e.preventDefault()
     setError('')
-    if (!form.customer_name.trim()) return setError('Customer name is required.')
-    if (!form.problem_desc.trim())  return setError('Problem description is required.')
+    if (!form.customer_name.trim())       return setError('Customer name is required.')
+    if (form.selectedIssues.length === 0) return setError('Please select at least one problem.')
+    if (form.selectedIssues.includes('Other issue') && !form.otherDesc.trim())
+      return setError('Please describe the other issue.')
     if (form.service_type === 'Home Service' && !form.address.trim())
       return setError('Address is required for Home Service.')
+
+    // Build problem_desc: replace bare "Other issue" with the typed description
+    const issues = form.selectedIssues.map(i =>
+      i === 'Other issue' ? `Other: ${form.otherDesc.trim()}` : i
+    )
 
     setSaving(true)
     try {
       const payload = {
         ...form,
+        problem_desc:   issues.join(', '),
         estimated_cost: parseFloat(form.estimated_cost) || 0,
         part_id:        form.part_id ? parseInt(form.part_id) : null,
       }
@@ -69,6 +111,8 @@ export default function NewTicket() {
       setSaving(false)
     }
   }
+
+  const otherChecked = form.selectedIssues.includes('Other issue')
 
   return (
     <>
@@ -93,7 +137,7 @@ export default function NewTicket() {
               <div className="form-group">
                 <label>Full Name <span className="req">*</span></label>
                 <input
-                  type="text" 
+                  type="text"
                   value={form.customer_name}
                   onChange={e => set('customer_name', e.target.value)}
                   required
@@ -102,7 +146,7 @@ export default function NewTicket() {
               <div className="form-group">
                 <label>Contact Number</label>
                 <input
-                  type="text" 
+                  type="text"
                   value={form.contact_number}
                   onChange={e => set('contact_number', e.target.value)}
                 />
@@ -152,7 +196,79 @@ export default function NewTicket() {
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-header"><h2> Device Details</h2></div>
           <div className="card-body">
-            <DeviceFields form={form} onChange={set} />
+            <DeviceFields form={form} onChange={set} hideProblemDesc />
+
+            {/* ── Issues / Problems — checkbox picker ── */}
+            <div className="form-group full" style={{ marginTop: 16 }}>
+              <label>Issues / Problems <span className="req">*</span></label>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: 8,
+                marginTop: 6,
+              }}>
+                {DEVICE_ISSUES.map(issue => {
+                  const checked = form.selectedIssues.includes(issue)
+                  return (
+                    <label
+                      key={issue}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                        border: `2px solid ${checked ? 'var(--blue)' : 'var(--gray-200)'}`,
+                        background: checked ? 'var(--light-blue)' : '#fff',
+                        fontSize: 14,
+                        transition: 'border-color 0.15s, background 0.15s',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleIssue(issue)}
+                        style={{ width: 16, height: 16, flexShrink: 0 }}
+                      />
+                      {issue}
+                    </label>
+                  )
+                })}
+              </div>
+
+              {/* Other issue — description textarea, shown only when checked */}
+              {otherChecked && (
+                <div style={{ marginTop: 12 }}>
+                  <textarea
+                    rows={3}
+                    placeholder="Please describe the other issue…"
+                    value={form.otherDesc}
+                    onChange={e => set('otherDesc', e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      borderRadius: 8,
+                      border: `2px solid ${form.otherDesc.trim() ? 'var(--blue)' : 'var(--gray-300)'}`,
+                      padding: '10px 12px',
+                      fontSize: 14,
+                      resize: 'vertical',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              )}
+
+              {form.selectedIssues.length > 0 && (
+                <p className="hint" style={{ marginTop: 8 }}>
+                  Selected:{' '}
+                  <strong>
+                    {form.selectedIssues
+                      .map(i => i === 'Other issue' && form.otherDesc.trim()
+                        ? `Other: ${form.otherDesc.trim()}`
+                        : i)
+                      .join(', ')}
+                  </strong>
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

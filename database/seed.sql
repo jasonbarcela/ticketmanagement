@@ -53,8 +53,8 @@ INSERT INTO inventory (part_id, part_code, part_name, category, quantity, cost_p
 (2,  'PRT-002', 'iPhone 12 Pro OLED Screen (Premium)',      'LCD/Screen',     6, 4500.00, 6000.00),
 (3,  'PRT-003', 'iPhone 11 High Capacity Battery',          'Battery',       20,  400.00,  950.00),
 (4,  'PRT-004', 'Vivo Y20 LCD Replacement Panel',           'LCD/Screen',    15, 2000.00, 3000.00),
-(5,  'PRT-005', 'Vivo Y20 Li-Polymer Battery Pack',           'Battery',       12,  300.00,  700.00),
-(6,  'PRT-006', 'USB-C Charging Port Flex (Universal)',       'Charging Port',  8,  150.00,  450.00),
+(5,  'PRT-005', 'Vivo Y20 Li-Polymer Battery Pack',         'Battery',       12,  300.00,  700.00),
+(6,  'PRT-006', 'USB-C Charging Port Flex (Universal)',     'Charging Port',  8,  150.00,  450.00),
 (7,  'PRT-007', 'Rear Camera Module — Samsung A14',         'Camera',         3,  800.00, 1200.00),
 (8,  'PRT-008', 'Speaker Assembly — iPhone 11',             'Speaker/Mic',    2,  250.00,  550.00);
 
@@ -66,8 +66,8 @@ INSERT INTO customers (customer_id, full_name, phone, email, address) VALUES
 
 -- ── Devices ───────────────────────────────────────────────────
 INSERT INTO devices (device_id, customer_id, device_type, brand, imei, passcode) VALUES
-(1, 1, 'Smartphone', 'Apple iPhone 11',        '351982104928172', NULL),
-(2, 2, 'Smartphone', 'Vivo Y20',               '862910492811029', '2580'),
+(1, 1, 'Smartphone', 'Apple iPhone 11',      '351982104928172', NULL),
+(2, 2, 'Smartphone', 'Vivo Y20',             '862910492811029', '2580'),
 (3, 3, 'Smartphone', 'Samsung Galaxy A14',   '359012345678901', NULL);
 
 -- ── Walk-in tickets ───────────────────────────────────────────
@@ -89,7 +89,7 @@ INSERT INTO repair_tickets (
  NULL,
  700.00, 'Diagnosing', 'Unpaid', CURDATE());
 
--- ── Home service booking + ticket ───────────────────────────────
+-- ── Home service booking + ticket ────────────────────────────
 INSERT INTO bookings (
   booking_id, customer_name, contact_number, customer_email,
   device_type, device_brand, problem_desc, service_type, address,
@@ -118,52 +118,37 @@ INSERT INTO repair_tickets (
  'Keinth Santos', '09171234567', CURDATE(),
  500.00, 'Approved', 'Partial', CURDATE());
 
--- ── Parts on tickets ────────────────────────────────────────────
+-- ── Parts on tickets ─────────────────────────────────────────
 INSERT INTO ticket_parts (ticket_id, part_id, quantity, unit_price) VALUES
 (1, 1, 1, 5000.00),
 (2, 5, 1, 700.00);
 
--- ── Device issues (customer-reported — staff confirm with checkbox) ──
+-- ── Problem description checklist items (staff confirm each) ─
+-- checklist_type is always 'Problem' — Repair type is removed.
 INSERT INTO ticket_checklist (ticket_id, label, checklist_type, is_checked, checked_by, checked_at, sort_order) VALUES
 (1, 'Cracked screen with touch issues', 'Problem', 1, 'Keinth Santos', NOW(), 1),
 (1, 'Display flickers on boot',         'Problem', 1, 'Keinth Santos', NOW(), 2),
 (2, 'Battery drains quickly',           'Problem', 0, NULL, NULL, 1),
 (2, 'Device gets warm while charging',  'Problem', 0, NULL, NULL, 2);
 
--- ── Repair steps (internal reference list — no customer checkboxes) ──
-INSERT INTO ticket_checklist (ticket_id, label, checklist_type, is_checked, sort_order) VALUES
-(1, 'Inspect device for physical damage', 'Repair', 0, 1),
-(1, 'Back up customer data if possible',  'Repair', 0, 2),
-(1, 'Diagnose root cause of problem',     'Repair', 0, 3),
-(1, 'Source required parts',              'Repair', 0, 4),
-(1, 'Perform repair',                     'Repair', 0, 5),
-(1, 'Test device functionality',        'Repair', 0, 6),
-(1, 'Clean device exterior',            'Repair', 0, 7),
-(1, 'Final quality check',                'Repair', 0, 8);
-
-INSERT INTO ticket_checklist (ticket_id, label, checklist_type, is_checked, sort_order) VALUES
-(2, 'Inspect device for physical damage', 'Repair', 0, 1),
-(2, 'Back up customer data if possible',  'Repair', 0, 2),
-(2, 'Diagnose root cause of problem',     'Repair', 0, 3);
-
--- ── Activity logs ───────────────────────────────────────────────
+-- ── Activity logs ────────────────────────────────────────────
 INSERT INTO repair_logs (ticket_id, change_type, notes, changed_by) VALUES
-(1, 'Status Change',     'Ticket CL-2026-00001 created. Status: Pending.', 'admin'),
-(1, 'Status Change',     'Device received during customer walk-in.', 'admin'),
-(1, 'Status Change',     'Status updated from "Pending" to "Diagnosing".', 'Keinth Santos'),
-(1, 'Status Change',     'Status updated from "Diagnosing" to "Repairing".', 'Keinth Santos'),
-(1, 'Tech Note',         'Screen assembly ordered; awaiting installation.', 'Keinth Santos'),
-(1, 'Checklist Update',  'Issue "Cracked screen with touch issues" confirmed by Keinth Santos.', 'Keinth Santos'),
-(1, 'Checklist Update',  'Issue "Display flickers on boot" confirmed by Keinth Santos.', 'Keinth Santos'),
-(2, 'Status Change',     'Ticket CL-2026-00002 created. Status: Pending.', 'admin'),
-(2, 'Status Change',     'Device received during customer walk-in.', 'admin'),
-(2, 'Status Change',     'Status updated from "Pending" to "Diagnosing".', 'Keinth Santos'),
-(2, 'Tech Note',         'Battery test scheduled; customer notified of ETA.', 'Keinth Santos'),
-(3, 'Status Change',     'Home service request submitted.', 'system'),
-(3, 'Status Change',     'Booking approved.', 'admin'),
-(3, 'Customer Update',   'Downpayment reference GCASH123456789 received.', 'admin');
+(1, 'Status Change',    'Ticket CL-2026-00001 created. Status: Pending.', 'admin'),
+(1, 'Status Change',    'Device received during customer walk-in.', 'admin'),
+(1, 'Status Change',    'Status updated from "Pending" to "Diagnosing".', 'Keinth Santos'),
+(1, 'Status Change',    'Status updated from "Diagnosing" to "Repairing".', 'Keinth Santos'),
+(1, 'Tech Note',        'Screen assembly ordered; awaiting installation.', 'Keinth Santos'),
+(1, 'Checklist Update', 'Problem "Cracked screen with touch issues" confirmed by Keinth Santos.', 'Keinth Santos'),
+(1, 'Checklist Update', 'Problem "Display flickers on boot" confirmed by Keinth Santos.', 'Keinth Santos'),
+(2, 'Status Change',    'Ticket CL-2026-00002 created. Status: Pending.', 'admin'),
+(2, 'Status Change',    'Device received during customer walk-in.', 'admin'),
+(2, 'Status Change',    'Status updated from "Pending" to "Diagnosing".', 'Keinth Santos'),
+(2, 'Tech Note',        'Battery test scheduled; customer notified of ETA.', 'Keinth Santos'),
+(3, 'Status Change',    'Home service request submitted.', 'system'),
+(3, 'Status Change',    'Booking approved.', 'admin'),
+(3, 'Customer Update',  'Downpayment reference GCASH123456789 received.', 'admin');
 
--- ── Payments ────────────────────────────────────────────────────
+-- ── Payments ─────────────────────────────────────────────────
 INSERT INTO payments (ticket_id, amount_paid, payment_method, notes, recorded_by) VALUES
 (1, 2500.00, 'GCash', 'Partial payment at intake.', 'admin'),
 (3, 200.00,  'GCash', 'Home service downpayment.', 'admin');

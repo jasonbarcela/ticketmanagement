@@ -155,7 +155,7 @@ function TechnicianBlock({ ticket }) {
 
 const php = (v) => `₱${parseFloat(v || 0).toFixed(2)}`
 
-function TicketResult({ ticket, logs, partsData, problemItems, repairSteps, photos, onReset }) {
+function TicketResult({ ticket, logs, partsData, problemItems, photos, onReset }) {
   const device = [ticket.device_brand, ticket.device_type].filter(Boolean).join(' — ')
   const isHome = ticket.service_type === 'Home Service'
   const partsVisible = partsData?.visible === true
@@ -181,39 +181,6 @@ function TicketResult({ ticket, logs, partsData, problemItems, repairSteps, phot
           <PublicStepper currentStatus={ticket.status} serviceType={ticket.service_type} />
         </div>
       </section>
-
-      {problemItems.length > 0 && (
-        <section className="card">
-          <div className="card-header"><h2>What You Reported</h2></div>
-          <div className="card-body">
-            <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 12 }}>
-              {confirmedIssues} of {problemItems.length} issue{problemItems.length !== 1 ? 's' : ''} confirmed on your device
-            </p>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {problemItems.map((item, i) => (
-                <li
-                  key={i}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    padding: '10px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 14,
-                  }}
-                >
-                  <span style={{ fontSize: 18, lineHeight: 1.2 }}>{item.is_checked ? '✅' : '⏳'}</span>
-                  <div>
-                    <strong>{item.label}</strong>
-                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 2 }}>
-                      {item.is_checked ? 'Confirmed by our technician' : 'Pending confirmation'}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <p className="hint" style={{ marginTop: 12, fontSize: 12 }}>
-              These are the issues you described when you submitted your device for repair.
-            </p>
-          </div>
-        </section>
-      )}
 
       <section className="card">
         <div className="card-header"><h2>🔍 Diagnostics &amp; Findings</h2></div>
@@ -250,6 +217,39 @@ function TicketResult({ ticket, logs, partsData, problemItems, repairSteps, phot
         </div>
       </section>
 
+      {problemItems.length > 0 && (
+        <section className="card">
+          <div className="card-header"><h2>Problem Description</h2></div>
+          <div className="card-body">
+            <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 12 }}>
+              {confirmedIssues} of {problemItems.length} issue{problemItems.length !== 1 ? 's' : ''} confirmed on your device
+            </p>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {problemItems.map((item, i) => (
+                <li
+                  key={i}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: '10px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 14,
+                  }}
+                >
+                  <span style={{ fontSize: 18, lineHeight: 1.2 }}>{item.is_checked ? '✅' : '⏳'}</span>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 2 }}>
+                      {item.is_checked ? 'Confirmed by our technician' : 'Pending confirmation'}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="hint" style={{ marginTop: 12, fontSize: 12 }}>
+              These are the issues you described when you submitted your device for repair.
+            </p>
+          </div>
+        </section>
+      )}
+
       {logs.length > 0 && (
         <section className="card">
           <div className="card-header"><h2>Activity</h2></div>
@@ -260,22 +260,6 @@ function TicketResult({ ticket, logs, partsData, problemItems, repairSteps, phot
       )}
 
       <TechnicianBlock ticket={ticket} />
-
-      {repairSteps.length > 0 && (
-        <section className="card">
-          <div className="card-header"><h2>How We Repair Your Device</h2></div>
-          <div className="card-body">
-            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
-              {repairSteps.map((item, i) => (
-                <li key={i} style={{ marginBottom: 8 }}>{item.label}</li>
-              ))}
-            </ol>
-            <p className="hint" style={{ marginTop: 12, fontSize: 12 }}>
-              Standard steps our technicians follow during your repair.
-            </p>
-          </div>
-        </section>
-      )}
 
       {partsVisible && (
         <section className="card">
@@ -385,7 +369,6 @@ export default function TrackingPage() {
   const [logs, setLogs] = useState([])
   const [partsData, setPartsData] = useState({ visible: false, parts: [] })
   const [problemItems, setProblemItems] = useState([])
-  const [repairSteps, setRepairSteps] = useState([])
   const [photos, setPhotos] = useState([])
   const [trackNumber, setTrackNumber] = useState('')
 
@@ -394,7 +377,6 @@ export default function TrackingPage() {
     setLogs([])
     setPartsData({ visible: false, parts: [] })
     setProblemItems([])
-    setRepairSteps([])
     setPhotos([])
     setTrackNumber('')
     setError('')
@@ -415,11 +397,6 @@ export default function TrackingPage() {
       checklistRes.problems?.length
         ? checklistRes.problems
         : allItems.filter(i => i.checklist_type === 'Problem')
-    )
-    setRepairSteps(
-      checklistRes.repair_steps?.length
-        ? checklistRes.repair_steps
-        : allItems.filter(i => !i.checklist_type || i.checklist_type === 'Repair')
     )
     setPhotos(photosRes.photos || [])
   }
@@ -565,7 +542,6 @@ export default function TrackingPage() {
           logs={logs}
           partsData={partsData}
           problemItems={problemItems}
-          repairSteps={repairSteps}
           photos={photos}
           onReset={reset}
         />

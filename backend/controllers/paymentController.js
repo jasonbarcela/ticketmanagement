@@ -1,20 +1,13 @@
-// ============================================================
-// controllers/paymentController.js — Billing & Ledger Logic
-//
-// Orchestrates invoice computations and processes incoming payments.
-// ============================================================
-
 const PaymentModel = require('../models/paymentModel');
 const AppError = require('../utils/AppError');
 
-// ── GET /api/payments/summary/:ticketId ──────────────────────
 async function getSummary(req, res, next) {
   try {
     const ticketId = parseInt(req.params.ticketId, 10);
-    if (!ticketId) throw new AppError('Invalid or missing ticket ID context.', 400);
+    if (!ticketId) throw new AppError('Invalid or missing ticket ID.', 400);
 
     const summary = await PaymentModel.getBillingSummary(ticketId);
-    if (!summary) throw new AppError('Ticket financial target not found.', 404);
+    if (!summary) throw new AppError('Ticket not found.', 404);
 
     res.json(summary);
   } catch (err) {
@@ -22,11 +15,10 @@ async function getSummary(req, res, next) {
   }
 }
 
-// ── GET /api/payments/ticket/:ticketId ───────────────────────
 async function getHistory(req, res, next) {
   try {
     const ticketId = parseInt(req.params.ticketId, 10);
-    if (!ticketId) throw new AppError('Invalid ticket reference parameter.', 400);
+    if (!ticketId) throw new AppError('Invalid ticket ID.', 400);
 
     const history = await PaymentModel.findPaymentsByTicketId(ticketId);
     res.json(history);
@@ -35,7 +27,6 @@ async function getHistory(req, res, next) {
   }
 }
 
-// ── POST /api/payments ───────────────────────────────────────
 async function processPayment(req, res, next) {
   try {
     const { ticket_id, amount_paid, payment_method, notes } = req.body;
@@ -51,7 +42,7 @@ async function processPayment(req, res, next) {
     const parsedAmount = parseFloat(amount_paid);
 
     if (!parsedTicketId || isNaN(parsedAmount) || parsedAmount <= 0) {
-      throw new AppError('Amount paid must be a positive number layout configuration value.', 400);
+      throw new AppError('Amount paid must be a positive number.', 400);
     }
 
     const result = await PaymentModel.recordPayment({
@@ -59,12 +50,12 @@ async function processPayment(req, res, next) {
       amount_paid: parsedAmount,
       payment_method,
       notes,
-      recorded_by: operator
+      recorded_by: operator,
     });
 
     res.json({
       success: true,
-      message: `Transaction record logged: ₱${parsedAmount.toFixed(2)} captured successfully.`,
+      message: `Payment of ₱${parsedAmount.toFixed(2)} recorded successfully.`,
       payment_status: result.payment_status,
       remaining_balance: result.remaining_balance,
       total_paid: result.total_paid,
@@ -77,8 +68,4 @@ async function processPayment(req, res, next) {
   }
 }
 
-module.exports = {
-  getSummary,
-  getHistory,
-  processPayment
-};
+module.exports = { getSummary, getHistory, processPayment };

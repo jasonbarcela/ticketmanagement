@@ -1,19 +1,8 @@
-// ============================================================
-// models/ticketModel.js — Repair Ticket SQL Query Layer (v2)
-//
-// All relational SQL queries for the normalized repair_tickets schema live here.
-// Handled tables: repair_tickets, customers, devices, bookings.
-// Dynamic links to ticket_parts are isolated to maintain strict context patterns.
-// ============================================================
 const pool = require('../config/db');
 
-/**
- * Fetch all tickets with nested user and hardware relations.
- * Includes optional filters by customer/ticket search string and operational status.
- */
 async function findAll({ search = '', status = '' } = {}) {
   let sql = `
-    SELECT 
+    SELECT
       rt.ticket_id,
       rt.ticket_number,
       rt.status,
@@ -28,6 +17,7 @@ async function findAll({ search = '', status = '' } = {}) {
       rt.received_date,
       rt.completed_date,
       rt.created_at,
+      DATE_FORMAT(rt.received_date, '%Y-%m-%d') AS date_created,
       c.full_name AS customer_name,
       c.phone AS contact_number,
       c.email AS customer_email,
@@ -56,12 +46,9 @@ async function findAll({ search = '', status = '' } = {}) {
   return rows;
 }
 
-/**
- * Fetch a single ticket with full customer, device, and structural layout data joined.
- */
 async function findById(ticketId) {
   const [rows] = await pool.execute(
-    `SELECT 
+    `SELECT
        rt.*,
        c.full_name AS customer_name,
        c.phone AS contact_number,
@@ -84,31 +71,24 @@ async function findById(ticketId) {
   return rows[0] || null;
 }
 
-/**
- * Fetch explicit target identifiers for validation routines (status transitions).
- */
 async function findStatusById(ticketId) {
   const [rows] = await pool.execute(
-    `SELECT ticket_id, status, service_type, assigned_tech, tech_contact, tech_assigned_date
+    `SELECT ticket_id, status, service_type, assigned_tech, tech_contact, tech_assigned_date, completed_date
      FROM repair_tickets WHERE ticket_id = ?`,
     [ticketId]
   );
   return rows[0] || null;
 }
 
-/**
- * Atomic creation sequence. Encapsulates customer generation, device logging, 
- * and ticket reservation inside an isolated transactional pipeline.
- */
 async function create(fields) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
     const {
-      customer_id, // provided if existing customer selection
+      customer_id,
       customer_name, contact_number, customer_email, customer_address,
-      device_id,   // provided if existing device selection
+      device_id,
       device_type, device_brand, imei, passcode,
       booking_id, problem_desc, service_type, address,
       preferred_schedule, service_date, preferred_time,
@@ -118,30 +98,27 @@ async function create(fields) {
     let targetCustomerId = customer_id;
     let targetDeviceId = device_id;
 
-    // 1. Resolve or Create Customer Entity
     if (!targetCustomerId && customer_name) {
       const [custResult] = await conn.execute(
-        `INSERT INTO customers (full_name, phone, email, address) 
+        `INSERT INTO customers (full_name, phone, email, address)
          VALUES (?, ?, ?, ?)`,
         [customer_name.trim(), contact_number || null, customer_email || null, customer_address || null]
       );
       targetCustomerId = custResult.insertId;
     }
 
-    // 2. Resolve or Create Device Asset
     if (!targetDeviceId && device_type && device_brand) {
       const [devResult] = await conn.execute(
-        `INSERT INTO devices (customer_id, device_type, brand, imei, passcode) 
+        `INSERT INTO devices (customer_id, device_type, brand, imei, passcode)
          VALUES (?, ?, ?, ?, ?)`,
         [targetCustomerId, device_type, device_brand, imei || null, passcode || null]
       );
       targetDeviceId = devResult.insertId;
     }
 
-    // 3. Create Ticket Record
     const [ticketResult] = await conn.execute(
       `INSERT INTO repair_tickets
-         (ticket_number, customer_id, device_id, booking_id, problem_desc, 
+         (ticket_number, customer_id, device_id, booking_id, problem_desc,
           service_type, address, preferred_schedule, service_date, preferred_time,
           assigned_tech, estimated_cost, status, received_date)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -173,9 +150,6 @@ async function create(fields) {
   }
 }
 
-/**
- * Patches temporary code tokens into verified system keys.
- */
 async function patchTicketNumber(ticketId, ticketNumber) {
   await pool.execute(
     'UPDATE repair_tickets SET ticket_number = ? WHERE ticket_id = ?',
@@ -183,10 +157,6 @@ async function patchTicketNumber(ticketId, ticketNumber) {
   );
 }
 
-/**
- * Full transactional entity synchronization. Updates primary attributes, 
- * normalized customer values, and structural hardware records.
- */
 async function update(ticketId, fields) {
   const conn = await pool.getConnection();
   try {
@@ -199,24 +169,22 @@ async function update(ticketId, fields) {
       service_date, preferred_time,
       assigned_tech, tech_contact, tech_assigned_date,
       diagnostic_notes, repair_notes, additional_findings,
-      customer_approval, estimated_cost, status, payment_status, completed_date
+      estimated_cost, status, payment_status, completed_date
     } = fields;
 
-    // 1. Update Normalized Customer Table Data
     if (customer_id) {
       await conn.execute(
-        `UPDATE customers 
-         SET full_name = ?, phone = ?, email = ?, address = ? 
+        `UPDATE customers
+         SET full_name = ?, phone = ?, email = ?, address = ?
          WHERE customer_id = ?`,
         [customer_name, contact_number, customer_email, customer_address, customer_id]
       );
     }
 
-    // 2. Update Normalized Device Table Data
     if (device_id) {
       await conn.execute(
-        `UPDATE devices 
-         SET device_type = ?, brand = ?, imei = ?, passcode = ? 
+        `UPDATE devices
+         SET device_type = ?, brand = ?, imei = ?, passcode = ?
          WHERE device_id = ?`,
         [device_type, device_brand, imei, passcode, device_id]
       );
@@ -226,7 +194,6 @@ async function update(ticketId, fields) {
       throw new Error('Ticket status is required.');
     }
 
-    // 3. Synchronize Core Ticket Entry Values
     await conn.execute(
       `UPDATE repair_tickets SET
          problem_desc = ?, service_type = ?, address = ?, preferred_schedule = ?,
@@ -263,21 +230,15 @@ async function update(ticketId, fields) {
   }
 }
 
-/**
- * Isolated structural status modifier layout pattern.
- */
 async function updateStatus(ticketId, status, completedDate = null) {
   await pool.execute(
-    `UPDATE repair_tickets 
-     SET status = ?, completed_date = ? 
+    `UPDATE repair_tickets
+     SET status = ?, completed_date = ?
      WHERE ticket_id = ?`,
     [status, completedDate, ticketId]
   );
 }
 
-/**
- * Hard delete configuration template. cascade parameters safely handle related logs or details.
- */
 async function remove(ticketId) {
   await pool.execute('DELETE FROM repair_tickets WHERE ticket_id = ?', [ticketId]);
 }

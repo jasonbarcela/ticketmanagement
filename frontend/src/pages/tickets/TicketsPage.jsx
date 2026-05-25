@@ -9,6 +9,7 @@
 // ============================================================
 import { useState, useCallback, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { useAuth }                from '../../context/AuthContext'
 import { TICKET_STATUSES, FILTER_STATUSES } from '../../constants/ticketStatus'
 import { ticketService }          from '../../services/ticketService'
 import { useFetch }               from '../../hooks/useFetch'
@@ -21,6 +22,8 @@ import EmptyState                 from '../../components/ui/EmptyState'
 const STATUSES = ['All', ...FILTER_STATUSES]
 
 export default function TicketsPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [searchParams] = useSearchParams()
   const initialStatus = searchParams.get('status') || 'All'
 
@@ -94,9 +97,11 @@ export default function TicketsPage() {
           <h1> Repair Tickets</h1>
           <p className="page-subtitle">All repair jobs — search, filter, and manage.</p>
         </div>
-        <Link to="/tickets/new" className="btn btn-primary">
-          + New Ticket
-        </Link>
+        {isAdmin && (
+          <Link to="/tickets/new" className="btn btn-primary">
+            + New Ticket
+          </Link>
+        )}
       </div>
 
       {/* ── Flash ───────────────────────────────────────────── */}
@@ -150,14 +155,14 @@ export default function TicketsPage() {
           {error   && <Alert type="error" style={{ margin: 16 }}>{error}</Alert>}
           {!loading && !error && tickets?.length === 0 && (
             <EmptyState
-              message="No tickets found. Try adjusting your filters or create a new ticket."
-              action={<Link to="/tickets/new" className="btn btn-primary" style={{ marginTop: 12 }}>+ New Ticket</Link>}
+              message="No tickets found. Try adjusting your filters."
+              action={isAdmin ? <Link to="/tickets/new" className="btn btn-primary" style={{ marginTop: 12 }}>+ New Ticket</Link> : null}
             />
           )}
           {!loading && !error && tickets?.length > 0 && (
             <TicketTable
               tickets={tickets}
-              onDelete={(id, name) => setDeleteTarget({ id, name })}
+              onDelete={isAdmin ? (id, name) => setDeleteTarget({ id, name }) : null}
             />
           )}
         </div>

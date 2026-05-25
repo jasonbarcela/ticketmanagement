@@ -1,4 +1,5 @@
 // pages/public/PublicBookingPage.jsx — Public repair intake with home service downpayment
+// "Other issue" checkbox reveals a description textarea when checked.
 import gcashQr from './images/gcashqr.jpeg'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -32,6 +33,7 @@ const BLANK = {
   device_type: '',
   device_brand: '',
   selectedIssues: [],
+  otherDesc: '',
   home_service: false,
   address: '',
   service_date: '',
@@ -68,29 +70,17 @@ function PublicShell({ children }) {
 
 function GcashQrPlaceholder() {
   return (
-    <div style={{
-      width: 180,
-      margin: '0 auto 16px',
-      textAlign: 'center',
-    }}>
+    <div style={{ width: 180, margin: '0 auto 16px', textAlign: 'center' }}>
       <img
         src={gcashQr}
         alt="GCash QR Code"
         style={{
-          width: '100%',
-          borderRadius: 12,
-          border: '2px solid #CBD5E1',
-          background: '#fff',
-          padding: 8,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          width: '100%', borderRadius: 12,
+          border: '2px solid #CBD5E1', background: '#fff',
+          padding: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}
       />
-
-      <div style={{
-        marginTop: 8,
-        fontSize: 12,
-        color: '#64748b',
-      }}>
+      <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
         Scan to pay via GCash
       </div>
     </div>
@@ -170,22 +160,39 @@ export default function PublicBookingPage() {
     }))
   }
 
+  const toggleIssue = (issue) => {
+    setForm(f => {
+      const already = f.selectedIssues.includes(issue)
+      return {
+        ...f,
+        selectedIssues: already
+          ? f.selectedIssues.filter(i => i !== issue)
+          : [...f.selectedIssues, issue],
+        otherDesc: already && issue === 'Other issue' ? '' : f.otherDesc,
+      }
+    })
+  }
+
   const handleSubmit = async e => {
     e.preventDefault()
     setError('')
-    if (!form.customer_name.trim()) return setError('Customer name is required.')
-    if (!form.contact_number.trim()) return setError('Contact number is required.')
-    if (!form.device_type.trim()) return setError('Device type is required.')
-    if (!form.device_brand.trim()) return setError('Device brand/model is required.')
+    if (!form.customer_name.trim())       return setError('Customer name is required.')
+    if (!form.contact_number.trim())      return setError('Contact number is required.')
+    if (!form.device_type.trim())         return setError('Device type is required.')
+    if (!form.device_brand.trim())        return setError('Device brand/model is required.')
     if (form.selectedIssues.length === 0) return setError('Please select at least one issue.')
+    if (form.selectedIssues.includes('Other issue') && !form.otherDesc.trim())
+      return setError('Please describe the other issue.')
     if (form.home_service) {
-      if (!form.address.trim()) return setError('Home address is required for home service.')
-      if (!form.service_date) return setError('Assigned date is required for home service.')
-      if (!form.preferred_time) return setError('Preferred time is required for home service.')
-      if (!form.downpayment_reference.trim()) {
-        return setError('GCash payment reference number is required.')
-      }
+      if (!form.address.trim())               return setError('Home address is required for home service.')
+      if (!form.service_date)                 return setError('Assigned date is required for home service.')
+      if (!form.preferred_time)               return setError('Preferred time is required for home service.')
+      if (!form.downpayment_reference.trim()) return setError('GCash payment reference number is required.')
     }
+
+    const issues = form.selectedIssues.map(i =>
+      i === 'Other issue' ? `Other: ${form.otherDesc.trim()}` : i
+    )
 
     setSubmitting(true)
     try {
@@ -195,7 +202,7 @@ export default function PublicBookingPage() {
         email: form.customer_email.trim() || undefined,
         device_type: form.device_type.trim(),
         device_brand: form.device_brand.trim(),
-        problem_desc: form.selectedIssues.join(', '),
+        problem_desc: issues.join(', '),
         home_service: form.home_service,
         service_type: form.home_service ? 'Home Service' : 'Walk-In',
         address: form.home_service ? form.address.trim() : undefined,
@@ -218,6 +225,8 @@ export default function PublicBookingPage() {
       </PublicShell>
     )
   }
+
+  const otherChecked = form.selectedIssues.includes('Other issue')
 
   return (
     <PublicShell>
@@ -266,6 +275,8 @@ export default function PublicBookingPage() {
                 <input type="text" placeholder="e.g. iPhone 11" value={form.device_brand}
                   onChange={e => set('device_brand', e.target.value)} />
               </div>
+
+              {/* ── Issues / Problems ── */}
               <div className="form-group full">
                 <label>Issues / Problems <span className="req">*</span></label>
                 <div style={{
@@ -283,19 +294,13 @@ export default function PublicBookingPage() {
                           border: `2px solid ${checked ? 'var(--blue)' : 'var(--gray-200)'}`,
                           background: checked ? 'var(--light-blue)' : '#fff',
                           fontSize: 14,
+                          transition: 'border-color 0.15s, background 0.15s',
                         }}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => {
-                            setForm(f => ({
-                              ...f,
-                              selectedIssues: checked
-                                ? f.selectedIssues.filter(i => i !== issue)
-                                : [...f.selectedIssues, issue],
-                            }))
-                          }}
+                          onChange={() => toggleIssue(issue)}
                           style={{ width: 16, height: 16, flexShrink: 0 }}
                         />
                         {issue}
@@ -303,9 +308,40 @@ export default function PublicBookingPage() {
                     )
                   })}
                 </div>
+
+                {/* Other issue description — appears only when checked */}
+                {otherChecked && (
+                  <div style={{ marginTop: 12 }}>
+                    <textarea
+                      rows={3}
+                      placeholder="Please describe the other issue…"
+                      value={form.otherDesc}
+                      onChange={e => set('otherDesc', e.target.value)}
+                      autoFocus
+                      style={{
+                        width: '100%',
+                        borderRadius: 8,
+                        border: `2px solid ${form.otherDesc.trim() ? 'var(--blue)' : 'var(--gray-300)'}`,
+                        padding: '10px 12px',
+                        fontSize: 14,
+                        resize: 'vertical',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+                )}
+
                 {form.selectedIssues.length > 0 && (
                   <p className="hint" style={{ marginTop: 8 }}>
-                    Selected: <strong>{form.selectedIssues.join(', ')}</strong>
+                    Selected:{' '}
+                    <strong>
+                      {form.selectedIssues
+                        .map(i => i === 'Other issue' && form.otherDesc.trim()
+                          ? `Other: ${form.otherDesc.trim()}`
+                          : i)
+                        .join(', ')}
+                    </strong>
                   </p>
                 )}
               </div>

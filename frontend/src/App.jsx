@@ -1,36 +1,29 @@
-// ============================================================
-// App.jsx — Updated routing with landing page + removed ReceiptPage
-// ============================================================
 import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './routes/ProtectedRoute'
 
-// Layout Components
-import Sidebar     from './components/layout/Sidebar'
-import Header      from './components/layout/Header'
+import Sidebar      from './components/layout/Sidebar'
+import Header       from './components/layout/Header'
 import MobileDrawer from './components/layout/MobileDrawer'
 
-// Public Pages
-import LandingPage        from './pages/public/LandingPage'       // ← NEW
-import LoginPage          from './pages/public/LoginPage'
-import PublicBookingPage  from './pages/public/PublicBookingPage'  // ← Updated
-import TrackingPage       from './pages/public/TrackingPage'
+import LandingPage       from './pages/public/LandingPage'
+import LoginPage         from './pages/public/LoginPage'
+import PublicBookingPage from './pages/public/PublicBookingPage'
+import TrackingPage      from './pages/public/TrackingPage'
 
-// Protected Pages
-import Dashboard    from './pages/dashboard/Dashboard'
-import TicketsPage  from './pages/tickets/TicketsPage'
-import NewTicket    from './pages/tickets/NewTicket'
-import ViewTicket   from './pages/tickets/ViewTicket'   // ← Updated (receipt modal)
-import EditTicket   from './pages/tickets/EditTicket'   // ← Updated (parts manager)
-import CustomersPage from './pages/customers/CustomersPage'
-import InventoryPage from './pages/inventory/InventoryPage'
-import BookingPage  from './pages/bookings/BookingPage'
-import BookingsListPage from './pages/bookings/BookingsListPage'
+import Dashboard             from './pages/dashboard/Dashboard'
+import TicketsPage           from './pages/tickets/TicketsPage'
+import NewTicket             from './pages/tickets/NewTicket'
+import ViewTicket            from './pages/tickets/ViewTicket'
+import EditTicket            from './pages/tickets/EditTicket'
+import CustomersPage         from './pages/customers/CustomersPage'
+import InventoryPage         from './pages/inventory/InventoryPage'
+import BookingPage           from './pages/bookings/BookingPage'
+import BookingsListPage      from './pages/bookings/BookingsListPage'
 import ManageTechniciansPage from './pages/staff/ManageTechniciansPage'
 import TechnicianProfilePage from './pages/staff/TechnicianProfilePage'
 
-// ── Authenticated Shell Layout ────────────────────────────────
 function AppLayout() {
   const { logout, user, isLoggedIn, loading } = useAuth()
   const [drawerOpen, setDrawer] = useState(false)
@@ -53,20 +46,20 @@ function AppLayout() {
   }
 
   const titleMap = {
-    '/':           'Dashboard',
-    '/tickets':    'Tickets',
-    '/customers':  'Customers',
-    '/inventory':  'Inventory',
-    '/book':       'New Request',
-    '/bookings':   'Home Service',
-    '/staff':      'Technicians',
-    '/profile':    'My Profile',
+    '/':          'Dashboard',
+    '/tickets':   'Tickets',
+    '/customers': 'Customers',
+    '/inventory': 'Inventory',
+    '/book':      'New Request',
+    '/bookings':  'Home Service',
+    '/staff':     'Technicians',
+    '/profile':   'My Profile',
   }
   const path = location.pathname
   const pageTitle = titleMap[path]
     || (path.startsWith('/tickets/view') ? 'View Ticket' : null)
     || (path.startsWith('/tickets/edit') ? 'Edit Ticket' : null)
-    || (path.startsWith('/tickets/new') ? 'New Ticket' : null)
+    || (path.startsWith('/tickets/new')  ? 'New Ticket'  : null)
     || 'Code & Locks'
 
   return (
@@ -83,7 +76,6 @@ function AppLayout() {
   )
 }
 
-// ── Route Controller ──────────────────────────────────────────
 function AppRoutes() {
   const { isLoggedIn, user } = useAuth()
   const baseRedirect = user?.role === 'technician' ? '/tickets' : '/'
@@ -91,27 +83,26 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/home"         element={<LandingPage />} />
-      <Route path="/login"        element={isLoggedIn ? <Navigate to={baseRedirect} replace /> : <LoginPage />} />
-      <Route path="/book-online"  element={<PublicBookingPage />} />
-      <Route path="/track"        element={<TrackingPage />} />
+      <Route path="/home"        element={<LandingPage />} />
+      <Route path="/login"       element={isLoggedIn ? <Navigate to={baseRedirect} replace /> : <LoginPage />} />
+      <Route path="/book-online" element={<PublicBookingPage />} />
+      <Route path="/track"       element={<TrackingPage />} />
 
       {/* Protected shell */}
       <Route element={<AppLayout />}>
         <Route path="/"                  element={<ProtectedRoute allowedRoles={['admin']}><Dashboard /></ProtectedRoute>} />
         <Route path="/inventory"         element={<ProtectedRoute allowedRoles={['admin', 'technician']}><InventoryPage /></ProtectedRoute>} />
         <Route path="/bookings"          element={<ProtectedRoute allowedRoles={['admin']}><BookingsListPage /></ProtectedRoute>} />
-        <Route path="/tickets/edit/:id"  element={<ProtectedRoute allowedRoles={['admin','technician']}><EditTicket /></ProtectedRoute>} />
-        <Route path="/tickets"           element={<ProtectedRoute allowedRoles={['admin','technician']}><TicketsPage /></ProtectedRoute>} />
-        <Route path="/tickets/new"       element={<ProtectedRoute allowedRoles={['admin','technician']}><NewTicket /></ProtectedRoute>} />
-        <Route path="/tickets/view/:id"  element={<ProtectedRoute allowedRoles={['admin','technician']}><ViewTicket /></ProtectedRoute>} />
-        <Route path="/customers"         element={<ProtectedRoute allowedRoles={['admin','technician']}><CustomersPage /></ProtectedRoute>} />
-        <Route path="/book"              element={<ProtectedRoute allowedRoles={['admin','technician']}><BookingPage /></ProtectedRoute>} />
+        <Route path="/tickets/edit/:id"  element={<ProtectedRoute allowedRoles={['admin', 'technician']}><EditTicket /></ProtectedRoute>} />
+        <Route path="/tickets"           element={<ProtectedRoute allowedRoles={['admin', 'technician']}><TicketsPage /></ProtectedRoute>} />
+        <Route path="/tickets/new"       element={<ProtectedRoute allowedRoles={['admin']}><NewTicket /></ProtectedRoute>} />
+        <Route path="/tickets/view/:id"  element={<ProtectedRoute allowedRoles={['admin', 'technician']}><ViewTicket /></ProtectedRoute>} />
+        <Route path="/customers"         element={<ProtectedRoute allowedRoles={['admin', 'technician']}><CustomersPage /></ProtectedRoute>} />
+        <Route path="/book"              element={<ProtectedRoute allowedRoles={['admin']}><BookingPage /></ProtectedRoute>} />
         <Route path="/staff"             element={<ProtectedRoute allowedRoles={['admin']}><ManageTechniciansPage /></ProtectedRoute>} />
-        <Route path="/profile"          element={<ProtectedRoute allowedRoles={['technician']}><TechnicianProfilePage /></ProtectedRoute>} />
+        <Route path="/profile"           element={<ProtectedRoute allowedRoles={['technician']}><TechnicianProfilePage /></ProtectedRoute>} />
       </Route>
 
-      {/* Redirect root to landing page for unauthenticated, dashboard for authenticated */}
       <Route path="*" element={<Navigate to={isLoggedIn ? baseRedirect : '/home'} replace />} />
     </Routes>
   )

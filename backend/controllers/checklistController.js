@@ -1,4 +1,3 @@
-// controllers/checklistController.js — Repair ticket checklist
 const pool = require('../config/db');
 const AppError = require('../utils/AppError');
 
@@ -21,7 +20,7 @@ async function getChecklist(req, res, next) {
 
     const [rows] = await pool.execute(
       `SELECT * FROM ticket_checklist
-       WHERE ticket_id = ?
+       WHERE ticket_id = ? AND checklist_type = 'Problem'
        ORDER BY sort_order ASC, item_id ASC`,
       [ticketId]
     );
@@ -35,30 +34,28 @@ async function addItem(req, res, next) {
   try {
     const ticketId = parseInt(req.params.ticketId || req.params.id, 10);
     const label = (req.body.label || '').trim();
-    let checklistType = (req.body.checklist_type || 'Repair').trim();
-    if (!['Problem', 'Repair'].includes(checklistType)) checklistType = 'Repair';
 
     if (!ticketId) throw new AppError('Invalid ticket ID.', 400);
     if (!label) throw new AppError('Checklist label is required.', 400);
 
     const [maxRow] = await pool.execute(
       `SELECT COALESCE(MAX(sort_order), 0) AS max_sort
-       FROM ticket_checklist WHERE ticket_id = ? AND checklist_type = ?`,
-      [ticketId, checklistType]
+       FROM ticket_checklist WHERE ticket_id = ? AND checklist_type = 'Problem'`,
+      [ticketId]
     );
     const sortOrder = (maxRow[0]?.max_sort || 0) + 1;
 
     const [result] = await pool.execute(
       `INSERT INTO ticket_checklist (ticket_id, label, sort_order, checklist_type)
-       VALUES (?, ?, ?, ?)`,
-      [ticketId, label, sortOrder, checklistType]
+       VALUES (?, ?, ?, 'Problem')`,
+      [ticketId, label, sortOrder]
     );
 
     res.status(201).json({
       success: true,
       item_id: result.insertId,
       label,
-      checklist_type: checklistType,
+      checklist_type: 'Problem',
       sort_order: sortOrder,
     });
   } catch (err) {
@@ -76,7 +73,8 @@ async function toggleItem(req, res, next) {
     if (!ticketId || !itemId) throw new AppError('Invalid ticket or item ID.', 400);
 
     const [items] = await pool.execute(
-      'SELECT label, is_checked FROM ticket_checklist WHERE item_id = ? AND ticket_id = ?',
+      `SELECT label, is_checked FROM ticket_checklist
+       WHERE item_id = ? AND ticket_id = ? AND checklist_type = 'Problem'`,
       [itemId, ticketId]
     );
     if (!items.length) throw new AppError('Checklist item not found.', 404);
@@ -92,8 +90,8 @@ async function toggleItem(req, res, next) {
       [isChecked, checkedBy, checkedAt, itemId, ticketId]
     );
 
-    const action = isChecked ? 'checked' : 'unchecked';
-    const logNote = `Checklist item "${label}" ${action} by ${operator}.`;
+    const action = isChecked ? 'confirmed' : 'unconfirmed';
+    const logNote = `Problem "${label}" ${action} by ${operator}.`;
     await pool.execute(
       `INSERT INTO repair_logs (ticket_id, change_type, notes, changed_by)
        VALUES (?, 'Checklist Update', ?, ?)`,
@@ -113,7 +111,8 @@ async function deleteItem(req, res, next) {
     if (!ticketId || !itemId) throw new AppError('Invalid ticket or item ID.', 400);
 
     const [result] = await pool.execute(
-      'DELETE FROM ticket_checklist WHERE item_id = ? AND ticket_id = ?',
+      `DELETE FROM ticket_checklist
+       WHERE item_id = ? AND ticket_id = ? AND checklist_type = 'Problem'`,
       [itemId, ticketId]
     );
     if (!result.affectedRows) throw new AppError('Checklist item not found.', 404);
@@ -124,43 +123,9 @@ async function deleteItem(req, res, next) {
   }
 }
 
-async function getPublicChecklist(req, res, next) {
-  try {
-    const ticketNumber = (req.params.ticketNumber || '').trim().toUpperCase();
-    if (!ticketNumber) throw new AppError('Ticket number is required.', 400);
-
-    const [tickets] = await pool.execute(
-      'SELECT ticket_id FROM repair_tickets WHERE ticket_number = ? LIMIT 1',
-      [ticketNumber]
-    );
-    if (!tickets.length) throw new AppError('Ticket not found.', 404);
-
-    const ticketId = tickets[0].ticket_id;
-    const [problems] = await pool.execute(
-      `SELECT label, is_checked, checked_at
-       FROM ticket_checklist
-       WHERE ticket_id = ? AND checklist_type = 'Problem'
-       ORDER BY sort_order ASC, item_id ASC`,
-      [ticketId]
-    );
-    const [repairSteps] = await pool.execute(
-      `SELECT label, is_checked, checked_at
-       FROM ticket_checklist
-       WHERE ticket_id = ? AND checklist_type = 'Repair'
-       ORDER BY sort_order ASC, item_id ASC`,
-      [ticketId]
-    );
-
-    res.json({ problems, repair_steps: repairSteps, items: [...problems, ...repairSteps] });
-  } catch (err) {
-    next(err);
-  }
-}
-
 module.exports = {
   getChecklist,
   addItem,
   toggleItem,
   deleteItem,
-  getPublicChecklist,
 };

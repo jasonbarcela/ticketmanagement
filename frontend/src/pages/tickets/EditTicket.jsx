@@ -2,6 +2,7 @@
 // pages/tickets/EditTicket.jsx
 // Updated: Parts management section with inventory deduction.
 // Admin/Tech can add parts to a ticket; inventory is reduced.
+// Problem Description now includes an inline checklist UI.
 // ============================================================
 import { useState, useEffect }    from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -24,7 +25,7 @@ import api                        from '../../lib/axios'
 import { compressImageFile }      from '../../lib/compressImage'
 
 
-// ── Log helpers (same as before) ─────────────────────────────
+// ── Log helpers ───────────────────────────────────────────────
 function formatChangedBy(raw) {
   if (!raw) return 'Staff'
   try {
@@ -72,35 +73,25 @@ function entryStyle(label) {
   }
 }
 
-const DEFAULT_CHECKLIST = [
-  'Inspect device for physical damage',
-  'Back up customer data if possible',
-  'Diagnose root cause of problem',
-  'Source required parts',
-  'Perform repair',
-  'Test device functionality',
-  'Clean device exterior',
-  'Final quality check',
-]
-
 const PHOTO_STAGES = ['Before', 'During', 'After']
 
-function useChecklistByType(ticketId, checklistType) {
-  const [items, setItems] = useState([])
+// ── Problem Description Checklist ─────────────────────────────
+// Manages checklist items stored in ticket_checklist with
+// checklist_type = 'Problem'. Staff can add, toggle, and delete.
+// Checkbox style matches the Home Booking / NewTicket page exactly.
+function ProblemChecklist({ ticketId, isAdmin }) {
+  const [items, setItems]       = useState([])
+  const [newLabel, setNewLabel] = useState('')
+
   const load = async () => {
     try {
       const res = await api.get(`/tickets/${ticketId}/checklist`)
       const all = res.data || []
-      setItems(all.filter(i => (i.checklist_type || 'Repair') === checklistType))
+      setItems(all.filter(i => i.checklist_type === 'Problem'))
     } catch (_) {}
   }
-  useEffect(() => { load() }, [ticketId])
-  return { items, reload: load }
-}
 
-function ProblemChecklist({ ticketId, isAdmin }) {
-  const [newLabel, setNewLabel] = useState('')
-  const { items, reload } = useChecklistByType(ticketId, 'Problem')
+  useEffect(() => { load() }, [ticketId])
 
   const confirmed = items.filter(i => i.is_checked).length
   const pct = items.length ? Math.round((confirmed / items.length) * 100) : 0
@@ -109,156 +100,108 @@ function ProblemChecklist({ ticketId, isAdmin }) {
     await api.patch(`/tickets/${ticketId}/checklist/${item.item_id}`, {
       is_checked: !item.is_checked,
     })
-    reload()
+    load()
   }
 
-  const addItem = async (label) => {
-    const trimmed = (label || '').trim()
+  const addItem = async () => {
+    const trimmed = newLabel.trim()
     if (!trimmed) return
     await api.post(`/tickets/${ticketId}/checklist`, { label: trimmed, checklist_type: 'Problem' })
     setNewLabel('')
-    reload()
+    load()
   }
 
   const deleteItem = async (itemId) => {
     await api.delete(`/tickets/${ticketId}/checklist/${itemId}`)
-    reload()
+    load()
   }
 
   return (
-    <div className="card" style={{ marginBottom: 20 }}>
-      <div className="card-header"><h2>📋 Device Issues (Customer Reported)</h2></div>
-      <div className="card-body">
-        <p className="hint" style={{ marginBottom: 12 }}>
-          List each problem the customer described. Check off an issue once you have confirmed it on the device.
-        </p>
-        {items.length === 0 ? (
-          <p style={{ color: 'var(--gray-500)', fontSize: 13, fontStyle: 'italic' }}>No reported issues listed yet.</p>
-        ) : (
-          <>
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px' }}>
-              {items.map(item => (
-                <li
-                  key={item.item_id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 0', borderBottom: '1px solid var(--gray-100)',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={!!item.is_checked}
-                    onChange={() => toggleItem(item)}
-                    aria-label={`Confirm issue: ${item.label}`}
-                  />
-                  <span style={{
-                    flex: 1,
-                    textDecoration: item.is_checked ? 'line-through' : 'none',
-                    color: item.is_checked ? 'var(--gray-500)' : 'inherit',
-                  }}>
-                    {item.label}
-                  </span>
-                  {isAdmin && (
-                    <button type="button" className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 11 }}
-                      onClick={() => deleteItem(item.item_id)}>✕</button>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ height: 8, background: 'var(--gray-200)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s' }} />
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 6 }}>
-                {confirmed} of {items.length} issues confirmed ({pct}%)
-              </p>
-            </div>
-          </>
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--gray-200)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+          Problem Checklist
+        </span>
+        {items.length > 0 && (
+          <span style={{ fontSize: 11, color: 'var(--gray-500)' }}>
+            {confirmed}/{items.length} confirmed
+          </span>
         )}
-        <input
-          type="text"
-          placeholder="Add a reported problem and press Enter..."
-          value={newLabel}
-          onChange={e => setNewLabel(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(newLabel) } }}
-          style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--gray-200)' }}
-        />
       </div>
-    </div>
-  )
-}
 
-function RepairStepsChecklist({ ticketId, isAdmin }) {
-  const [newLabel, setNewLabel] = useState('')
-  const [loadingDefault, setLoadingDefault] = useState(false)
-  const { items, reload } = useChecklistByType(ticketId, 'Repair')
-
-  const addItem = async (label) => {
-    const trimmed = (label || '').trim()
-    if (!trimmed) return
-    await api.post(`/tickets/${ticketId}/checklist`, { label: trimmed, checklist_type: 'Repair' })
-    setNewLabel('')
-    reload()
-  }
-
-  const loadDefault = async () => {
-    setLoadingDefault(true)
-    try {
-      for (const label of DEFAULT_CHECKLIST) {
-        await api.post(`/tickets/${ticketId}/checklist`, { label, checklist_type: 'Repair' })
-      }
-      reload()
-    } finally {
-      setLoadingDefault(false)
-    }
-  }
-
-  const deleteItem = async (itemId) => {
-    await api.delete(`/tickets/${ticketId}/checklist/${itemId}`)
-    reload()
-  }
-
-  return (
-    <div className="card" style={{ marginBottom: 20 }}>
-      <div className="card-header"><h2>🔧 Repair Steps (Internal)</h2></div>
-      <div className="card-body">
-        <p className="hint" style={{ marginBottom: 12 }}>
-          Optional reference list for the technician — not shown as checkboxes to the customer.
-        </p>
-        {items.length === 0 ? (
-          <div style={{ textAlign: 'center', marginBottom: 16 }}>
-            <p style={{ color: 'var(--gray-500)', fontSize: 13, marginBottom: 12 }}>No repair steps yet.</p>
-            <button type="button" className="btn btn-secondary" onClick={loadDefault} disabled={loadingDefault}>
-              {loadingDefault ? '⏳ Loading...' : 'Load Default Steps'}
-            </button>
-          </div>
-        ) : (
-          <ol style={{ margin: '0 0 12px', paddingLeft: 22 }}>
-            {items.map((item, idx) => (
-              <li
+      {items.length > 0 && (
+        <>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: 8,
+            marginBottom: 10,
+          }}>
+            {items.map(item => (
+              <label
                 key={item.item_id}
                 style={{
-                  marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 8,
-                  alignItems: 'flex-start',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                  border: `2px solid ${item.is_checked ? 'var(--blue)' : 'var(--gray-200)'}`,
+                  background: item.is_checked ? 'var(--light-blue)' : '#fff',
+                  fontSize: 14,
+                  transition: 'border-color 0.15s, background 0.15s',
+                  textDecoration: item.is_checked ? 'line-through' : 'none',
+                  color: item.is_checked ? 'var(--gray-500)' : 'inherit',
                 }}
               >
+                <input
+                  type="checkbox"
+                  checked={!!item.is_checked}
+                  onChange={() => toggleItem(item)}
+                  aria-label={`Confirm: ${item.label}`}
+                  style={{ width: 16, height: 16, flexShrink: 0 }}
+                />
                 <span style={{ flex: 1 }}>{item.label}</span>
                 {isAdmin && (
-                  <button type="button" className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 11 }}
-                    onClick={() => deleteItem(item.item_id)}>✕</button>
+                  <button
+                    type="button"
+                    onClick={e => { e.preventDefault(); deleteItem(item.item_id) }}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--gray-400)', fontSize: 14, padding: '0 2px',
+                      lineHeight: 1, flexShrink: 0,
+                    }}
+                    title="Remove item"
+                  >✕</button>
                 )}
-              </li>
+              </label>
             ))}
-          </ol>
-        )}
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ height: 6, background: 'var(--gray-200)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ width: `${pct}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s' }} />
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
+              {confirmed} of {items.length} issues confirmed ({pct}%)
+            </p>
+          </div>
+        </>
+      )}
+
+      <div style={{ display: 'flex', gap: 8 }}>
         <input
           type="text"
-          placeholder="Add a repair step and press Enter..."
+          placeholder="Add a reported problem and press Enter…"
           value={newLabel}
           onChange={e => setNewLabel(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(newLabel) } }}
-          style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--gray-200)' }}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem() } }}
+          style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--gray-200)', fontSize: 13 }}
         />
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={addItem}
+          style={{ whiteSpace: 'nowrap' }}
+        >
+          + Add
+        </button>
       </div>
     </div>
   )
@@ -433,11 +376,8 @@ function PartsManager({ ticketId, inventory }) {
     }
   }
 
-  // Parts already attached to this ticket
   const attachedIds = new Set(ticketParts.map(p => p.part_id))
-  // Available inventory (not already used OR still in stock)
   const availableParts = inventory.filter(p => p.quantity > 0 || attachedIds.has(p.part_id))
-
   const partsTotal = ticketParts.reduce((sum, p) => sum + p.quantity * parseFloat(p.unit_price), 0)
 
   return (
@@ -453,7 +393,6 @@ function PartsManager({ ticketId, inventory }) {
           </div>
         )}
 
-        {/* ── Add Part Row ── */}
         <div style={{
           display: 'flex', gap: 10, alignItems: 'flex-end',
           padding: '14px 16px', background: 'var(--gray-50)',
@@ -462,11 +401,7 @@ function PartsManager({ ticketId, inventory }) {
         }}>
           <div className="form-group" style={{ flex: 3, minWidth: 200, margin: 0 }}>
             <label style={{ fontSize: 12 }}>Select Part from Inventory</label>
-            <select
-              value={selectedPart}
-              onChange={e => setSelectedPart(e.target.value)}
-              style={{ marginTop: 4 }}
-            >
+            <select value={selectedPart} onChange={e => setSelectedPart(e.target.value)} style={{ marginTop: 4 }}>
               <option value="">— Choose a part —</option>
               {availableParts.map(p => (
                 <option key={p.part_id} value={p.part_id} disabled={p.quantity === 0}>
@@ -484,11 +419,7 @@ function PartsManager({ ticketId, inventory }) {
             />
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, whiteSpace: 'nowrap' }}>
-            <input
-              type="checkbox"
-              checked={customerProvided}
-              onChange={e => setCustomerProvided(e.target.checked)}
-            />
+            <input type="checkbox" checked={customerProvided} onChange={e => setCustomerProvided(e.target.checked)} />
             Customer part
           </label>
           <button
@@ -502,7 +433,6 @@ function PartsManager({ ticketId, inventory }) {
           </button>
         </div>
 
-        {/* ── Parts Table ── */}
         {ticketParts.length === 0 ? (
           <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--gray-400)', fontSize: 13, fontStyle: 'italic' }}>
             No parts added yet. Use the selector above to attach parts.
@@ -537,8 +467,7 @@ function PartsManager({ ticketId, inventory }) {
                         disabled={removing === p.part_id}
                         style={{
                           background: 'none', border: 'none', cursor: 'pointer',
-                          color: '#c53030', fontSize: 16, padding: '2px 6px',
-                          borderRadius: 4,
+                          color: '#c53030', fontSize: 16, padding: '2px 6px', borderRadius: 4,
                         }}
                         title="Remove part & return to stock"
                       >
@@ -549,8 +478,6 @@ function PartsManager({ ticketId, inventory }) {
                 ))}
               </tbody>
             </table>
-
-            {/* Parts total */}
             <div style={{
               display: 'flex', justifyContent: 'flex-end',
               padding: '10px 10px 0', marginTop: 8,
@@ -799,7 +726,19 @@ export default function EditTicket() {
         <div className="card" style={{ marginBottom: isHomeService ? 0 : 20 }}>
           <div className="card-header"><h2>{isHomeService ? 'Device Information' : ' Device Details'}</h2></div>
           <div className="card-body">
-            <DeviceFields form={form} onChange={set} />
+            <DeviceFields form={form} onChange={set} hideProblemDesc />
+
+            {/* Problem Description + Checklist — only here */}
+            <div className="form-group full" style={{ marginTop: 16 }}>
+              <label>Problem Description <span className="req">*</span></label>
+              <textarea
+                rows={3}
+                value={form.problem_desc}
+                onChange={e => set('problem_desc', e.target.value)}
+                placeholder="Describe the problem the customer reported…"
+              />
+              <ProblemChecklist ticketId={id} isAdmin={isAdmin} />
+            </div>
           </div>
         </div>
         </>
@@ -937,13 +876,11 @@ export default function EditTicket() {
 
       {!isHomeService && <PartsManager ticketId={id} inventory={inventory} />}
 
-      <ProblemChecklist ticketId={id} isAdmin={isAdmin} />
-      <RepairStepsChecklist ticketId={id} isAdmin={isAdmin} />
       <DevicePhotos ticketId={id} />
 
       <div className="card" style={{ marginBottom: 32 }}>
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>{isHomeService ? 'Repair Activity' : 'Repair Activity'}</h2>
+          <h2>Repair Activity</h2>
           <button type="button" className="btn btn-secondary btn-sm" onClick={loadLogs}>
             🔄 Refresh
           </button>

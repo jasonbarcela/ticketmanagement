@@ -1,6 +1,3 @@
-// ============================================================
-// controllers/ticketController.js
-// ============================================================
 const TicketModel = require('../models/ticketModel');
 const BookingModel = require('../models/bookingModel');
 const InvModel = require('../models/inventoryModel');
@@ -18,7 +15,6 @@ const { formatTicketNumber, getInitialStatus, today } = require('../utils/ticket
 const AppError = require('../utils/AppError');
 const pool = require('../config/db');
 
-// ── GET /api/tickets ─────────────────────────────────────────
 async function getAll(req, res, next) {
   try {
     const search = (req.query.search || '').trim();
@@ -28,7 +24,6 @@ async function getAll(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// ── GET /api/tickets/:id ──────────────────────────────────────
 async function getOne(req, res, next) {
   try {
     const id = parseInt(req.params.id);
@@ -94,7 +89,6 @@ function sendTrackResponse(res, row) {
   });
 }
 
-// ── GET /api/tickets/track/lookup?ticket=&contact= (PUBLIC) ───
 async function trackLookup(req, res, next) {
   try {
     const ticketNumber = (req.query.ticket || '').trim().toUpperCase();
@@ -134,7 +128,6 @@ async function trackLookup(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// ── GET /api/tickets/track/:number (PUBLIC — legacy URL) ─────
 async function trackByNumber(req, res, next) {
   try {
     const ticketNumber = (req.params.number || '').trim().toUpperCase();
@@ -153,7 +146,6 @@ async function trackByNumber(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// ── GET /api/tickets/:id/logs ─────────────────────────────────
 async function getLogs(req, res, next) {
   try {
     const id = parseInt(req.params.id);
@@ -169,7 +161,6 @@ async function getLogs(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// ── POST /api/tickets ─────────────────────────────────────────
 async function create(req, res, next) {
   try {
     const err = validateTicketPayload(req.body);
@@ -196,7 +187,6 @@ async function create(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// ── PUT /api/tickets/:id ──────────────────────────────────────
 async function update(req, res, next) {
   try {
     const id = parseInt(req.params.id);
@@ -262,7 +252,9 @@ async function update(req, res, next) {
       service_type: serviceType,
       status: nextStatus,
       tech_assigned_date: techAssignedDate,
-      completed_date: isCompleting ? (req.body.completed_date || today()) : null,
+      completed_date: isCompleting
+        ? (current.completed_date || req.body.completed_date || today())
+        : null,
       repair_notes: req.body.repair_notes != null ? req.body.repair_notes : prevNoteRows[0]?.repair_notes,
     };
 
@@ -303,7 +295,6 @@ async function update(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// ── PUT /api/tickets/:id/status ───────────────────────────────
 async function advanceStatus(req, res, next) {
   try {
     const id = parseInt(req.params.id);
@@ -328,7 +319,9 @@ async function advanceStatus(req, res, next) {
 
     const operator = req.headers['x-user'] ? JSON.parse(req.headers['x-user']).username : 'system';
     const isCompleting = nextStatus === 'Completed';
-    const completedDate = isCompleting ? today() : null;
+    const completedDate = isCompleting
+      ? (current.completed_date || today())
+      : null;
 
     await TicketModel.updateStatus(id, nextStatus, completedDate);
 
@@ -353,7 +346,6 @@ const PUBLIC_PARTS_STATUSES = new Set([
   'Diagnosing', 'Repairing', 'Ready for Pickup', 'Completed',
 ]);
 
-// ── GET /api/tickets/track/parts/:ticketNumber (PUBLIC) ───────
 async function getPublicTicketParts(req, res, next) {
   try {
     const ticketNumber = (req.params.ticketNumber || '').trim().toUpperCase();
@@ -391,7 +383,6 @@ async function getPublicTicketParts(req, res, next) {
   }
 }
 
-// ── GET /api/tickets/track/checklist/:ticketNumber (PUBLIC) ───
 async function getPublicChecklist(req, res, next) {
   try {
     const ticketNumber = (req.params.ticketNumber || '').trim().toUpperCase();
@@ -425,7 +416,6 @@ async function getPublicChecklist(req, res, next) {
   }
 }
 
-// ── DELETE /api/tickets/:id ───────────────────────────────────
 async function remove(req, res, next) {
   try {
     const id = parseInt(req.params.id);

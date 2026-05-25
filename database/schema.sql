@@ -162,13 +162,15 @@ CREATE TABLE ticket_photos (
 ) ENGINE=InnoDB;
 
 -- ─────────────────────────────────────────────────────────────
--- 9. Repair checklist per ticket
+-- 9. Problem description checklist per ticket
+--    checklist_type is always 'Problem'.
+--    Staff confirm each customer-reported issue with a checkbox.
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE ticket_checklist (
     item_id INT AUTO_INCREMENT PRIMARY KEY,
     ticket_id INT NOT NULL,
     label VARCHAR(200) NOT NULL,
-    checklist_type ENUM('Problem', 'Repair') NOT NULL DEFAULT 'Repair',
+    checklist_type ENUM('Problem') NOT NULL DEFAULT 'Problem',
     is_checked TINYINT NOT NULL DEFAULT 0,
     checked_by VARCHAR(100) NULL,
     checked_at TIMESTAMP NULL,

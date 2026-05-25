@@ -3,6 +3,8 @@
 //
 // Renders the device type, brand, IMEI, passcode, and
 // problem description fields used in all ticket forms.
+// Pass hideProblemDesc to suppress the textarea (used when the
+// parent renders its own checkbox-based issue picker instead).
 // ============================================================
 
 const DEVICE_TYPES = [
@@ -10,7 +12,7 @@ const DEVICE_TYPES = [
   'Tablet / iPad', 'Smart TV', 'Game Console', 'Other',
 ]
 
-export default function DeviceFields({ form, onChange }) {
+export default function DeviceFields({ form, onChange, hideProblemDesc }) {
   const set = field => e => onChange(field, e.target.value)
 
   return (
@@ -54,15 +56,17 @@ export default function DeviceFields({ form, onChange }) {
         />
       </div>
 
-      <div className="form-group full">
-        <label>Problem Description <span className="req">*</span></label>
-        <textarea
-          rows={3}
-          placeholder="Describe the issue clearly (e.g. cracked screen, won't charge, battery draining fast...)"
-          value={form.problem_desc}
-          onChange={set('problem_desc')}
-        />
-      </div>
+      {!hideProblemDesc && (
+        <div className="form-group full">
+          <label>Problem Description <span className="req">*</span></label>
+          <textarea
+            rows={3}
+            placeholder="Describe the issue clearly (e.g. cracked screen, won't charge, battery draining fast...)"
+            value={form.problem_desc}
+            onChange={set('problem_desc')}
+          />
+        </div>
+      )}
     </div>
   )
 }

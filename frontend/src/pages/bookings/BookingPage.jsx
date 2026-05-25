@@ -19,9 +19,25 @@ import Alert               from '../../components/ui/Alert'
 import { bookingService }  from '../../services/bookingService'
 import ReceiptModal        from '../../components/modals/ReceiptModal'
 
+const DEVICE_ISSUES = [
+  'Screen cracked / broken',
+  'Battery draining fast',
+  "Won't turn on / no power",
+  'Charging port not working',
+  'Water damage',
+  'Speaker / microphone issue',
+  'Camera not working',
+  'Software / virus problem',
+  'Overheating',
+  'Slow performance',
+  'Wi-Fi / Bluetooth not connecting',
+  'Other issue',
+]
+
 const BLANK = {
   customer_name: '', contact_number: '', customer_email: '',
   device_type: '', device_brand: '', imei: '', passcode: '',
+  selectedIssues: [], otherDesc: '',
   problem_desc: '', service_type: 'Walk-In',
   address: '', service_date: '', preferred_time: '',
   downpayment_method: '', downpayment_note: '',
@@ -110,6 +126,19 @@ export default function BookingPage() {
 
   const set = (field, val) => setForm(f => ({ ...f, [field]: val }))
 
+  const toggleIssue = (issue) => {
+    setForm(f => {
+      const already = f.selectedIssues.includes(issue)
+      return {
+        ...f,
+        selectedIssues: already
+          ? f.selectedIssues.filter(i => i !== issue)
+          : [...f.selectedIssues, issue],
+        otherDesc: already && issue === 'Other issue' ? '' : f.otherDesc,
+      }
+    })
+  }
+
   const handleSubmit = async e => {
     e.preventDefault()
     setError('')
@@ -117,14 +146,21 @@ export default function BookingPage() {
     if (!form.customer_name.trim())  return setError('Customer name is required.')
     if (!form.contact_number.trim()) return setError('Contact number is required.')
     if (!form.device_type)           return setError('Device type is required.')
-    if (!form.problem_desc.trim())   return setError('Problem description is required.')
+    if (form.selectedIssues.length === 0) return setError('Please select at least one issue.')
+    if (form.selectedIssues.includes('Other issue') && !form.otherDesc.trim())
+      return setError('Please describe the other issue.')
     if (form.service_type === 'Home Service' && !form.address.trim())
       return setError('Home address is required for Home Service.')
+
+    const issues = form.selectedIssues.map(i =>
+      i === 'Other issue' ? `Other: ${form.otherDesc.trim()}` : i
+    )
 
     setSubmitting(true)
     try {
       const res = await bookingService.submitIntake({
         ...form,
+        problem_desc: issues.join(', '),
         service_fee: parseFloat(form.service_fee) || 0,
       })
       if (!res?.ticket_number) {
@@ -194,7 +230,81 @@ export default function BookingPage() {
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-header"><h2> Device Details</h2></div>
           <div className="card-body">
-            <DeviceFields form={form} onChange={set} />
+            <DeviceFields form={form} onChange={set} hideProblemDesc />
+
+            {/* ── Issues / Problems — checkbox picker ── */}
+            <div style={{ marginTop: 16 }}>
+              <div style={{
+                fontSize: 12, fontWeight: 700, color: 'var(--gray-600)',
+                textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6,
+              }}>
+                Issues / Problems <span className="req">*</span>
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: 8,
+              }}>
+                {DEVICE_ISSUES.map(issue => {
+                  const checked = form.selectedIssues.includes(issue)
+                  return (
+                    <div
+                      key={issue}
+                      onClick={() => toggleIssue(issue)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                        border: `2px solid ${checked ? 'var(--blue)' : 'var(--gray-200)'}`,
+                        background: checked ? 'var(--light-blue)' : '#fff',
+                        transition: 'border-color 0.15s, background 0.15s',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleIssue(issue)}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--navy)', textTransform: 'none', letterSpacing: 'normal' }}>
+                        {issue}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {form.selectedIssues.includes('Other issue') && (
+                <div style={{ marginTop: 12 }}>
+                  <textarea
+                    rows={3}
+                    placeholder="Please describe the other issue…"
+                    value={form.otherDesc}
+                    onChange={e => set('otherDesc', e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%', borderRadius: 8,
+                      border: `2px solid ${form.otherDesc.trim() ? 'var(--blue)' : 'var(--gray-300)'}`,
+                      padding: '10px 12px', fontSize: 14,
+                      resize: 'vertical', boxSizing: 'border-box', outline: 'none',
+                    }}
+                  />
+                </div>
+              )}
+
+              {form.selectedIssues.length > 0 && (
+                <p className="hint" style={{ marginTop: 8 }}>
+                  Selected:{' '}
+                  <strong>
+                    {form.selectedIssues
+                      .map(i => i === 'Other issue' && form.otherDesc.trim()
+                        ? `Other: ${form.otherDesc.trim()}`
+                        : i)
+                      .join(', ')}
+                  </strong>
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -331,22 +441,6 @@ export default function BookingPage() {
                 </div>
               </>
             )}
-          </div>
-        </div>
-
-        {/* ── Problem Description ───────────────────────────── */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><h2>🛠️ Problem Description</h2></div>
-          <div className="card-body">
-            <div className="form-group">
-              <label>Describe the Issue <span className="req">*</span></label>
-              <textarea
-                rows={3} placeholder="Describe the issue the customer is experiencing..."
-                value={form.problem_desc}
-                onChange={e => set('problem_desc', e.target.value)}
-                required
-              />
-            </div>
           </div>
         </div>
 

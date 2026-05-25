@@ -88,12 +88,14 @@ export default function TicketTable({ tickets, onDelete }) {
                   <Link to={`/tickets/edit/${t.ticket_id}`} className="btn btn-primary btn-sm">
                     Edit
                   </Link>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={() => onDelete(t.ticket_id, t.customer_name)}
-                  >
-                    Del
-                  </button>
+                  {onDelete && (
+                    <button
+                      className="btn btn-danger btn-sm"
+                      onClick={() => onDelete(t.ticket_id, t.customer_name)}
+                    >
+                      Del
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>

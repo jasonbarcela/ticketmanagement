@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { to: '/bookings',  end: false,  label: 'Home Service', roles: ['admin'] },
   { to: '/staff',     end: false,  label: 'Technicians', roles: ['admin'] },
   { to: '/profile',   end: false,  label: 'My Profile', roles: ['technician'] },
-  { to: '/book',      end: false,  label: 'New Request', highlight: true, roles: ['admin', 'technician'] },
+  { to: '/book',      end: false,  label: 'New Request', highlight: true, roles: ['admin'] },
 ];
 
 export default function Sidebar({ onLogout }) {
